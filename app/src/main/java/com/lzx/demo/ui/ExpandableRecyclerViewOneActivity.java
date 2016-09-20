@@ -5,22 +5,27 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.GridLayoutManager;
+import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import com.github.jdsjlzx.recyclerview.HeaderSpanSizeLookup;
+import com.github.jdsjlzx.interfaces.OnItemClickListener;
 import com.github.jdsjlzx.recyclerview.LRecyclerView;
 import com.github.jdsjlzx.recyclerview.LRecyclerViewAdapter;
+import com.github.jdsjlzx.recyclerview.ProgressStyle;
 import com.github.jdsjlzx.util.RecyclerViewStateUtils;
 import com.github.jdsjlzx.util.RecyclerViewUtils;
 import com.github.jdsjlzx.view.LoadingFooter;
 import com.lzx.demo.R;
+import com.lzx.demo.adapter.CommentExpandAdapter;
+import com.lzx.demo.adapter.ExpandableRecyclerAdapter;
 import com.lzx.demo.base.ListBaseAdapter;
 import com.lzx.demo.bean.ItemModel;
 import com.lzx.demo.util.NetworkUtils;
@@ -30,12 +35,13 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 /**
- * 带HeaderView的分页加载GridLayout RecyclerView
+ * 带HeaderView的分页加载LinearLayout RecyclerView
  */
-public class EndlessGridLayoutActivity extends AppCompatActivity {
+public class ExpandableRecyclerViewOneActivity extends AppCompatActivity {
+    private static final String TAG = "lzx";
 
     /**服务器端一共多少条数据*/
-    private static final int TOTAL_COUNTER = 34;
+    private static final int TOTAL_COUNTER = 64;
 
     /**每一页展示多少条数据*/
     private static final int REQUEST_COUNT = 10;
@@ -45,10 +51,11 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
 
     private LRecyclerView mRecyclerView = null;
 
-    private DataAdapter mDataAdapter = null;
+    private CommentExpandAdapter mDataAdapter = null;
 
     private PreviewHandler mHandler = new PreviewHandler(this);
     private LRecyclerViewAdapter mLRecyclerViewAdapter = null;
+
     private boolean isRefresh = false;
 
     @Override
@@ -59,18 +66,18 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
-
         mRecyclerView = (LRecyclerView) findViewById(R.id.list);
 
-        mDataAdapter = new DataAdapter(this);
 
+        mDataAdapter = new CommentExpandAdapter(this);
+        mDataAdapter.setMode(ExpandableRecyclerAdapter.MODE_ACCORDION);
         mLRecyclerViewAdapter = new LRecyclerViewAdapter(mDataAdapter);
         mRecyclerView.setAdapter(mLRecyclerViewAdapter);
 
-        //setLayoutManager
-        GridLayoutManager manager = new GridLayoutManager(this, 2);
-        manager.setSpanSizeLookup(new HeaderSpanSizeLookup((LRecyclerViewAdapter) mRecyclerView.getAdapter(), manager.getSpanCount()));
-        mRecyclerView.setLayoutManager(manager);
+        mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        mRecyclerView.setRefreshProgressStyle(ProgressStyle.BallSpinFadeLoader);
+        mRecyclerView.setArrowImageView(R.drawable.ic_pulltorefresh_arrow);
 
         RecyclerViewUtils.setHeaderView(mRecyclerView, new SampleHeader(this));
 
@@ -94,16 +101,17 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
             public void onBottom() {
                 LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(mRecyclerView);
                 if(state == LoadingFooter.State.Loading) {
+                    Log.d(TAG, "the state is Loading, just wait..");
                     return;
                 }
 
                 if (mCurrentCounter < TOTAL_COUNTER) {
                     // loading more
-                    RecyclerViewStateUtils.setFooterViewState(EndlessGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
+                    RecyclerViewStateUtils.setFooterViewState(ExpandableRecyclerViewOneActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
                     requestData();
                 } else {
                     //the end
-                    RecyclerViewStateUtils.setFooterViewState(EndlessGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.TheEnd, null);
+                    RecyclerViewStateUtils.setFooterViewState(ExpandableRecyclerViewOneActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.TheEnd, null);
 
                 }
             }
@@ -119,9 +127,22 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
 
         });
 
+
         mRecyclerView.setRefreshing(true);
 
+        mLRecyclerViewAdapter.setOnItemClickListener(new OnItemClickListener() {
+            @Override
+            public void onItemClick(View view, int position) {
+                //ItemModel item = mDataAdapter.getDataList().get(position);
+                //AppToast.showShortText(ExpandableRecyclerViewOneActivity.this, item.title);
+            }
 
+            @Override
+            public void onItemLongClick(View view, int position) {
+                //ItemModel item = mDataAdapter.getDataList().get(position);
+                //AppToast.showShortText(ExpandableRecyclerViewOneActivity.this, "onItemLongClick - " + item.title);
+            }
+        });
 
     }
 
@@ -130,29 +151,31 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
     }
 
     private void addItems(ArrayList<ItemModel> list) {
-        mDataAdapter.addAll(list);
+
+        //mDataAdapter.addAll(list);
         mCurrentCounter += list.size();
+
     }
 
     private static class PreviewHandler extends Handler {
 
-        private WeakReference<EndlessGridLayoutActivity> ref;
+        private WeakReference<ExpandableRecyclerViewOneActivity> ref;
 
-        PreviewHandler(EndlessGridLayoutActivity activity) {
+        PreviewHandler(ExpandableRecyclerViewOneActivity activity) {
             ref = new WeakReference<>(activity);
         }
 
         @Override
         public void handleMessage(Message msg) {
-            final EndlessGridLayoutActivity activity = ref.get();
+            final ExpandableRecyclerViewOneActivity activity = ref.get();
             if (activity == null || activity.isFinishing()) {
                 return;
             }
-
             switch (msg.what) {
+
                 case -1:
                     if(activity.isRefresh){
-                        activity.mDataAdapter.clear();
+                        //activity.mDataAdapter.clear();
                         mCurrentCounter = 0;
                     }
 
@@ -164,6 +187,7 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
                         if (newList.size() + currentSize >= TOTAL_COUNTER) {
                             break;
                         }
+
                         ItemModel item = new ItemModel();
                         item.id = currentSize + i;
                         item.title = "item" + (item.id);
@@ -177,10 +201,10 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
                     if(activity.isRefresh){
                         activity.isRefresh = false;
                         activity.mRecyclerView.refreshComplete();
-                        activity.notifyDataSetChanged();
-                    }else {
-                        RecyclerViewStateUtils.setFooterViewState(activity.mRecyclerView, LoadingFooter.State.Normal);
                     }
+
+                    RecyclerViewStateUtils.setFooterViewState(activity.mRecyclerView, LoadingFooter.State.Normal);
+                    activity.notifyDataSetChanged();
                     break;
                 case -2:
                     activity.notifyDataSetChanged();
@@ -189,10 +213,11 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
                     if(activity.isRefresh){
                         activity.isRefresh = false;
                         activity.mRecyclerView.refreshComplete();
-                        activity.notifyDataSetChanged();
-                    }else {
-                        RecyclerViewStateUtils.setFooterViewState(activity, activity.mRecyclerView, REQUEST_COUNT, LoadingFooter.State.NetWorkError, activity.mFooterClick);
                     }
+                    activity.notifyDataSetChanged();
+                    RecyclerViewStateUtils.setFooterViewState(activity, activity.mRecyclerView, REQUEST_COUNT, LoadingFooter.State.NetWorkError, activity.mFooterClick);
+                    break;
+                default:
                     break;
             }
         }
@@ -201,7 +226,7 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
     private View.OnClickListener mFooterClick = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            RecyclerViewStateUtils.setFooterViewState(EndlessGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
+            RecyclerViewStateUtils.setFooterViewState(ExpandableRecyclerViewOneActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
             requestData();
         }
     };
@@ -210,7 +235,7 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
      * 模拟请求网络
      */
     private void requestData() {
-
+        Log.d(TAG, "requestData");
         new Thread() {
 
             @Override
@@ -218,13 +243,13 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
                 super.run();
 
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(800);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
 
                 //模拟一下网络请求失败的情况
-                if(NetworkUtils.isNetAvailable(EndlessGridLayoutActivity.this)) {
+                if(NetworkUtils.isNetAvailable(ExpandableRecyclerViewOneActivity.this)) {
                     mHandler.sendEmptyMessage(-1);
                 } else {
                     mHandler.sendEmptyMessage(-3);
@@ -233,31 +258,27 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
         }.start();
     }
 
-    private class DataAdapter  extends ListBaseAdapter<ItemModel> {
+    private class DataAdapter extends ListBaseAdapter<ItemModel> {
 
         private LayoutInflater mLayoutInflater;
 
         public DataAdapter(Context context) {
             mLayoutInflater = LayoutInflater.from(context);
+            mContext = context;
         }
 
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            return new ViewHolder(mLayoutInflater.inflate(R.layout.sample_item_card, parent, false));
+            return new ViewHolder(mLayoutInflater.inflate(R.layout.list_item_text, parent, false));
         }
 
         @Override
-        public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-
-            ItemModel itemModel = mDataList.get(position);
+        public void onBindViewHolder(RecyclerView.ViewHolder holder, final int position) {
+            ItemModel item = mDataList.get(position);
 
             ViewHolder viewHolder = (ViewHolder) holder;
-            viewHolder.textView.setText(itemModel.title);
-        }
+            viewHolder.textView.setText(item.title);
 
-        @Override
-        public int getItemCount() {
-            return mDataList.size();
         }
 
         private class ViewHolder extends RecyclerView.ViewHolder {
@@ -272,10 +293,26 @@ public class EndlessGridLayoutActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            finish();
-        }
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main_expand, menu);
         return true;
     }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case android.R.id.home:
+                finish();
+                return true;
+            case R.id.action_expand_all:
+                mDataAdapter.expandAll();
+                return true;
+            case R.id.action_collapse_all:
+                mDataAdapter.collapseAll();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
 }

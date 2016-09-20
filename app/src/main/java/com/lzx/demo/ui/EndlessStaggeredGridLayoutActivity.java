@@ -16,7 +16,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import com.github.jdsjlzx.interfaces.OnItemClickListener;
 import com.github.jdsjlzx.recyclerview.LRecyclerView;
 import com.github.jdsjlzx.recyclerview.LRecyclerViewAdapter;
 import com.github.jdsjlzx.util.RecyclerViewStateUtils;
@@ -25,9 +24,7 @@ import com.github.jdsjlzx.view.LoadingFooter;
 import com.lzx.demo.R;
 import com.lzx.demo.base.ListBaseAdapter;
 import com.lzx.demo.bean.ItemModel;
-import com.lzx.demo.util.AppToast;
 import com.lzx.demo.util.NetworkUtils;
-import com.lzx.demo.util.TLog;
 import com.lzx.demo.weight.SampleHeader;
 
 import java.lang.ref.WeakReference;
@@ -67,7 +64,7 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
 
         mDataAdapter = new DataAdapter(this);
 
-        mLRecyclerViewAdapter = new LRecyclerViewAdapter(this, mDataAdapter);
+        mLRecyclerViewAdapter = new LRecyclerViewAdapter(mDataAdapter);
         mRecyclerView.setAdapter(mLRecyclerViewAdapter);
 
         //setLayoutManager
@@ -79,10 +76,10 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
 
         RecyclerViewUtils.setHeaderView(mRecyclerView, new SampleHeader(this));
 
-
         mRecyclerView.setLScrollListener(new LRecyclerView.LScrollListener() {
             @Override
             public void onRefresh() {
+                mCurrentCounter = 0;
                 isRefresh = true;
                 requestData();
             }
@@ -99,7 +96,6 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
             public void onBottom() {
                 LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(mRecyclerView);
                 if(state == LoadingFooter.State.Loading) {
-                    TLog.log("the state is Loading, just wait..");
                     return;
                 }
 
@@ -110,6 +106,7 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
                 } else {
                     //the end
                     RecyclerViewStateUtils.setFooterViewState(EndlessStaggeredGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.TheEnd, null);
+
                 }
             }
 
@@ -117,22 +114,15 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
             public void onScrolled(int distanceX, int distanceY) {
             }
 
+            @Override
+            public void onScrollStateChanged(int state) {
+
+            }
+
         });
+
         mRecyclerView.setRefreshing(true);
 
-        mLRecyclerViewAdapter.setOnItemClickListener(new OnItemClickListener() {
-            @Override
-            public void onItemClick(View view, int position) {
-                ItemModel item = mDataAdapter.getDataList().get(position);
-                AppToast.showShortText(EndlessStaggeredGridLayoutActivity.this, item.title);
-            }
-
-            @Override
-            public void onItemLongClick(View view, int position) {
-                ItemModel item = mDataAdapter.getDataList().get(position);
-                AppToast.showShortText(EndlessStaggeredGridLayoutActivity.this, "onItemLongClick - " + item.title);
-            }
-        });
     }
 
     private void addItems(ArrayList<ItemModel> list) {

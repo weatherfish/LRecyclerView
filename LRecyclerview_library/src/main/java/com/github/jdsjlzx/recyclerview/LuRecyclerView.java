@@ -8,34 +8,25 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.util.AttributeSet;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewParent;
 
-import com.github.jdsjlzx.util.RecyclerViewStateUtils;
-import com.github.jdsjlzx.view.ArrowRefreshHeader;
 import com.github.jdsjlzx.view.LoadingFooter;
 
 /**
  *
- * @author lizhixian
- * @created 2016/8/29 11:21
+ * @author Lzx
+ * @created 2016/9/9 16:45
  *
  */
-public class LRecyclerView extends RecyclerView {
-    private boolean pullRefreshEnabled = true;
+public class LuRecyclerView extends RecyclerView {
     private LScrollListener mLScrollListener;
-    private ArrowRefreshHeader mRefreshHeader;
     private View mEmptyView;
     private View mFootView;
-    private int mRefreshProgressStyle = ProgressStyle.SysProgress;
-    private final RecyclerView.AdapterDataObserver mDataObserver = new DataObserver();
-    private float mLastY = -1;
-    private static final float DRAG_RATE = 2.2f;
+    private final AdapterDataObserver mDataObserver = new DataObserver();
 
-    private LRecyclerViewAdapter mWrapAdapter;
-    private boolean isNoMore = false;
-    private int mRefreshHeaderHeight;
+    private LuRecyclerViewAdapter mWrapAdapter;
+
     //scroll variables begin
     /**
      * 当前RecyclerView类型
@@ -86,24 +77,20 @@ public class LRecyclerView extends RecyclerView {
 
     private AppBarStateChangeListener.State appbarState = AppBarStateChangeListener.State.EXPANDED;
 
-    public LRecyclerView(Context context) {
+    public LuRecyclerView(Context context) {
         this(context, null);
     }
 
-    public LRecyclerView(Context context, AttributeSet attrs) {
+    public LuRecyclerView(Context context, AttributeSet attrs) {
         this(context, attrs, 0);
     }
 
-    public LRecyclerView(Context context, AttributeSet attrs, int defStyle) {
+    public LuRecyclerView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
         init();
     }
 
     private void init() {
-        if (pullRefreshEnabled) {
-            mRefreshHeader = new ArrowRefreshHeader(getContext());
-            mRefreshHeader.setProgressStyle(mRefreshProgressStyle);
-        }
         LoadingFooter footView = new LoadingFooter(getContext());
         mFootView = footView;
         mFootView.setVisibility(GONE);
@@ -111,16 +98,15 @@ public class LRecyclerView extends RecyclerView {
 
     @Override
     public void setAdapter(Adapter adapter) {
-        mWrapAdapter = (LRecyclerViewAdapter) adapter;
+        mWrapAdapter = (LuRecyclerViewAdapter) adapter;
         super.setAdapter(mWrapAdapter);
         mDataObserver.onChanged();
 
-        mWrapAdapter.setRefreshHeader(mRefreshHeader);
         mWrapAdapter.addFooterView(mFootView);
 
     }
 
-    private class DataObserver extends RecyclerView.AdapterDataObserver {
+    private class DataObserver extends AdapterDataObserver {
         @Override
         public void onChanged() {
             Adapter<?> adapter = getAdapter();
@@ -131,20 +117,20 @@ public class LRecyclerView extends RecyclerView {
                     int count = headerAndFooterAdapter.getInnerAdapter().getItemCount();
                     if (count == 0) {
                         mEmptyView.setVisibility(View.VISIBLE);
-                        LRecyclerView.this.setVisibility(View.GONE);
+                        LuRecyclerView.this.setVisibility(View.GONE);
                     } else {
                         mEmptyView.setVisibility(View.GONE);
-                        LRecyclerView.this.setVisibility(View.VISIBLE);
+                        LuRecyclerView.this.setVisibility(View.VISIBLE);
                     }
                 }
             } else {
                 if (adapter != null && mEmptyView != null) {
                     if (adapter.getItemCount() == 0) {
                         mEmptyView.setVisibility(View.VISIBLE);
-                        LRecyclerView.this.setVisibility(View.GONE);
+                        LuRecyclerView.this.setVisibility(View.GONE);
                     } else {
                         mEmptyView.setVisibility(View.GONE);
-                        LRecyclerView.this.setVisibility(View.VISIBLE);
+                        LuRecyclerView.this.setVisibility(View.VISIBLE);
                     }
                 }
             }
@@ -154,41 +140,6 @@ public class LRecyclerView extends RecyclerView {
             }
         }
 
-    }
-
-    @Override
-    public boolean onTouchEvent(MotionEvent ev) {
-        if (mLastY == -1) {
-            mLastY = ev.getRawY();
-        }
-        switch (ev.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                mLastY = ev.getRawY();
-
-                break;
-            case MotionEvent.ACTION_MOVE:
-                final float deltaY = ev.getRawY() - mLastY;
-                mLastY = ev.getRawY();
-                if (isOnTop() && pullRefreshEnabled  && (appbarState == AppBarStateChangeListener.State.EXPANDED)) {
-                    mRefreshHeader.onMove(deltaY / DRAG_RATE);
-                    if (mRefreshHeader.getVisibleHeight() > 0 && mRefreshHeader.getState() < ArrowRefreshHeader.STATE_REFRESHING) {
-                        return false;
-                    }
-                }
-
-                break;
-            default:
-                mLastY = -1; // reset
-                if (isOnTop() && pullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED) {
-                    if (mRefreshHeader.releaseAction()) {
-                        if (mLScrollListener != null) {
-                            mLScrollListener.onRefresh();
-                        }
-                    }
-                }
-                break;
-        }
-        return super.onTouchEvent(ev);
     }
 
     private int findMax(int[] lastPositions) {
@@ -211,14 +162,6 @@ public class LRecyclerView extends RecyclerView {
         return min;
     }
 
-    private boolean isOnTop() {
-        if (pullRefreshEnabled && mRefreshHeader.getParent() != null) {
-            return true;
-        } else {
-            return false;
-        }
-
-    }
 
     /**
      * set view when no content item
@@ -229,42 +172,11 @@ public class LRecyclerView extends RecyclerView {
         this.mEmptyView = emptyView;
     }
 
-    public void refreshComplete() {
-        mRefreshHeader.refreshComplete();
-        setNoMore(false);
-    }
-
-    public void setNoMore(boolean noMore){
-        isNoMore = noMore;
-    }
-
-    public void setRefreshHeader(ArrowRefreshHeader refreshHeader) {
-        mRefreshHeader = refreshHeader;
-    }
-
-    public void setPullRefreshEnabled(boolean enabled) {
-        pullRefreshEnabled = enabled;
-    }
-
-    public void setRefreshProgressStyle(int style) {
-        if (mRefreshHeader != null) {
-            mRefreshHeader.setProgressStyle(style);
-        }
-    }
-
-    public void setArrowImageView(int resId) {
-        if (mRefreshHeader != null) {
-            mRefreshHeader.setArrowImageView(resId);
-        }
-    }
-
     public void setLScrollListener(LScrollListener listener) {
         mLScrollListener = listener;
     }
 
     public interface LScrollListener {
-
-        void onRefresh();//pull down to refresh
 
         void onScrollUp();//scroll down to up
 
@@ -277,35 +189,13 @@ public class LRecyclerView extends RecyclerView {
         void onScrollStateChanged(int state);
     }
 
-    public void setRefreshing(boolean refreshing) {
-        if (refreshing && pullRefreshEnabled && mLScrollListener != null) {
-            mRefreshHeader.setState(ArrowRefreshHeader.STATE_REFRESHING);
-            mRefreshHeaderHeight = mRefreshHeader.getMeasuredHeight();
-            mRefreshHeader.onMove(mRefreshHeaderHeight);
-            mLScrollListener.onRefresh();
-        }
-    }
-
-    public void forceToRefresh() {
-        LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(this);
-        if(state == LoadingFooter.State.Loading) {
-            return;
-        }
-        if (pullRefreshEnabled && mLScrollListener != null) {
-            scrollToPosition(0);
-            mRefreshHeader.setState(ArrowRefreshHeader.STATE_REFRESHING);
-            mRefreshHeader.onMove(mRefreshHeaderHeight);
-            mLScrollListener.onRefresh();
-        }
-    }
-
 
     @Override
     public void onScrolled(int dx, int dy) {
         super.onScrolled(dx, dy);
         if (null != mLScrollListener) {
             int firstVisibleItemPosition = 0;
-            RecyclerView.LayoutManager layoutManager = getLayoutManager();
+            LayoutManager layoutManager = getLayoutManager();
 
             if (layoutManagerType == null) {
                 if (layoutManager instanceof LinearLayoutManager) {
@@ -373,16 +263,13 @@ public class LRecyclerView extends RecyclerView {
                 if (visibleItemCount > 0
                         && lastVisibleItemPosition >= totalItemCount - 1
                         && totalItemCount > visibleItemCount
-                        && !isNoMore
-                        && !mIsScrollDown
-                        && mRefreshHeader.getState() != ArrowRefreshHeader.STATE_REFRESHING) {
+                        && !mIsScrollDown) {
                     mLScrollListener.onBottom();
                 }
 
             }
 
         }
-
 
     }
 

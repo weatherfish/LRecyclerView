@@ -67,23 +67,9 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity {
 
         mRecyclerView = (LRecyclerView) findViewById(R.id.list);
 
-        //init data
-        ArrayList<ItemModel> dataList = new ArrayList<>();
-
-        for (int i = 0; i < 11; i++) {
-
-            ItemModel item = new ItemModel();
-            item.id = i;
-            item.title = "item" + i;
-            //dataList.add(item);
-        }
-
-        mCurrentCounter = dataList.size();
 
         mDataAdapter = new DataAdapter(this);
-        mDataAdapter.addAll(dataList);
-
-        mLRecyclerViewAdapter = new LRecyclerViewAdapter(this, mDataAdapter);
+        mLRecyclerViewAdapter = new LRecyclerViewAdapter(mDataAdapter);
         mRecyclerView.setAdapter(mLRecyclerViewAdapter);
 
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -98,6 +84,7 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity {
             public void onRefresh() {
                 RecyclerViewStateUtils.setFooterViewState(mRecyclerView,LoadingFooter.State.Normal);
                 mDataAdapter.clear();
+                mLRecyclerViewAdapter.notifyDataSetChanged();//fix bug:crapped or attached views may not be recycled. isScrap:false isAttached:true
                 mCurrentCounter = 0;
                 isRefresh = true;
                 requestData();
@@ -134,7 +121,14 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity {
             public void onScrolled(int distanceX, int distanceY) {
             }
 
+            @Override
+            public void onScrollStateChanged(int state) {
+
+            }
+
         });
+
+
         mRecyclerView.setRefreshing(true);
 
         mLRecyclerViewAdapter.setOnItemClickListener(new OnItemClickListener() {
@@ -150,7 +144,6 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity {
                 AppToast.showShortText(EndlessLinearLayoutActivity.this, "onItemLongClick - " + item.title);
             }
         });
-
 
     }
 
@@ -209,11 +202,10 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity {
                     if(activity.isRefresh){
                         activity.isRefresh = false;
                         activity.mRecyclerView.refreshComplete();
-                        activity.notifyDataSetChanged();
-                    }else {
-                        RecyclerViewStateUtils.setFooterViewState(activity.mRecyclerView, LoadingFooter.State.Normal);
                     }
 
+                    RecyclerViewStateUtils.setFooterViewState(activity.mRecyclerView, LoadingFooter.State.Normal);
+                    activity.notifyDataSetChanged();
                     break;
                 case -2:
                     activity.notifyDataSetChanged();
@@ -222,10 +214,9 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity {
                     if(activity.isRefresh){
                         activity.isRefresh = false;
                         activity.mRecyclerView.refreshComplete();
-                        activity.notifyDataSetChanged();
-                    }else {
-                        RecyclerViewStateUtils.setFooterViewState(activity, activity.mRecyclerView, REQUEST_COUNT, LoadingFooter.State.NetWorkError, activity.mFooterClick);
                     }
+                    activity.notifyDataSetChanged();
+                    RecyclerViewStateUtils.setFooterViewState(activity, activity.mRecyclerView, REQUEST_COUNT, LoadingFooter.State.NetWorkError, activity.mFooterClick);
                     break;
                 default:
                     break;
@@ -283,13 +274,13 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+        public void onBindViewHolder(RecyclerView.ViewHolder holder, final int position) {
             ItemModel item = mDataList.get(position);
 
             ViewHolder viewHolder = (ViewHolder) holder;
             viewHolder.textView.setText(item.title);
-        }
 
+        }
 
         private class ViewHolder extends RecyclerView.ViewHolder {
 
@@ -314,6 +305,7 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity {
             finish();
         } else if (item.getItemId() == R.id.menu_refresh) {
             mRecyclerView.forceToRefresh();
+            //mDataAdapter.remove(mLRecyclerViewAdapter.getAdapterPosition(false,3));
         }
         return true;
     }
