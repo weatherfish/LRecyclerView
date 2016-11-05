@@ -5,26 +5,30 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.CardView;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.github.jdsjlzx.interfaces.OnItemClickListener;
 import com.github.jdsjlzx.interfaces.OnLoadMoreListener;
 import com.github.jdsjlzx.interfaces.OnRefreshListener;
 import com.github.jdsjlzx.recyclerview.LRecyclerView;
 import com.github.jdsjlzx.recyclerview.LRecyclerViewAdapter;
+import com.github.jdsjlzx.recyclerview.ProgressStyle;
 import com.github.jdsjlzx.util.RecyclerViewStateUtils;
 import com.github.jdsjlzx.view.LoadingFooter;
 import com.lzx.demo.R;
 import com.lzx.demo.base.ListBaseAdapter;
 import com.lzx.demo.bean.ItemModel;
+import com.lzx.demo.util.AppToast;
 import com.lzx.demo.util.NetworkUtils;
 import com.lzx.demo.view.SampleHeader;
 
@@ -32,12 +36,13 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
 /**
- * 带HeaderView的分页加载GridLayout RecyclerView
+ * 带HeaderView的分页加载LinearLayout RecyclerView
  */
-public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
+public class MulItemLinearLayoutActivity extends AppCompatActivity{
+    private static final String TAG = "lzx";
 
     /**服务器端一共多少条数据*/
-    private static final int TOTAL_COUNTER = 34;
+    private static final int TOTAL_COUNTER = 64;
 
     /**每一页展示多少条数据*/
     private static final int REQUEST_COUNT = 10;
@@ -51,6 +56,7 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
 
     private PreviewHandler mHandler = new PreviewHandler(this);
     private LRecyclerViewAdapter mLRecyclerViewAdapter = null;
+
     private boolean isRefresh = false;
 
     @Override
@@ -63,23 +69,24 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
 
         mRecyclerView = (LRecyclerView) findViewById(R.id.list);
 
-        mDataAdapter = new DataAdapter(this);
 
+        mDataAdapter = new DataAdapter(this);
         mLRecyclerViewAdapter = new LRecyclerViewAdapter(mDataAdapter);
         mRecyclerView.setAdapter(mLRecyclerViewAdapter);
 
-        //setLayoutManager
-        StaggeredGridLayoutManager layoutManager = new StaggeredGridLayoutManager( 2, StaggeredGridLayoutManager.VERTICAL);
-        layoutManager.setOrientation(LinearLayoutManager.VERTICAL);
-        //防止item位置互换
-        layoutManager.setGapStrategy(StaggeredGridLayoutManager.GAP_HANDLING_NONE);
-        mRecyclerView.setLayoutManager(layoutManager);
+        mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        mLRecyclerViewAdapter.addHeaderView(new SampleHeader(this));
+        mRecyclerView.setRefreshProgressStyle(ProgressStyle.BallSpinFadeLoader);
+        mRecyclerView.setArrowImageView(R.drawable.ic_pulltorefresh_arrow);
+
+        mLRecyclerViewAdapter.addHeaderView( new SampleHeader(this));
 
         mRecyclerView.setOnRefreshListener(new OnRefreshListener() {
             @Override
             public void onRefresh() {
+                RecyclerViewStateUtils.setFooterViewState(mRecyclerView,LoadingFooter.State.Normal);
+                mDataAdapter.clear();
+                mLRecyclerViewAdapter.notifyDataSetChanged();//fix bug:crapped or attached views may not be recycled. isScrap:false isAttached:true
                 mCurrentCounter = 0;
                 isRefresh = true;
                 requestData();
@@ -91,51 +98,90 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
             public void onLoadMore() {
                 LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(mRecyclerView);
                 if(state == LoadingFooter.State.Loading) {
+                    Log.d(TAG, "the state is Loading, just wait..");
                     return;
                 }
 
                 if (mCurrentCounter < TOTAL_COUNTER) {
                     // loading more
-                    RecyclerViewStateUtils.setFooterViewState(EndlessStaggeredGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
+                    RecyclerViewStateUtils.setFooterViewState(MulItemLinearLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
                     requestData();
                 } else {
                     //the end
-                    RecyclerViewStateUtils.setFooterViewState(EndlessStaggeredGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.TheEnd, null);
+                    RecyclerViewStateUtils.setFooterViewState(MulItemLinearLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.TheEnd, null);
 
                 }
             }
         });
 
+        mRecyclerView.setLScrollListener(new LRecyclerView.LScrollListener() {
+
+            @Override
+            public void onScrollUp() {
+            }
+
+            @Override
+            public void onScrollDown() {
+            }
+
+
+            @Override
+            public void onScrolled(int distanceX, int distanceY) {
+            }
+
+            @Override
+            public void onScrollStateChanged(int state) {
+
+            }
+
+        });
+
 
         mRecyclerView.setRefreshing(true);
 
-    }
+        mLRecyclerViewAdapter.setOnItemClickListener(new OnItemClickListener() {
+            @Override
+            public void onItemClick(View view, int position) {
+                ItemModel item = mDataAdapter.getDataList().get(position);
+                AppToast.showShortText(MulItemLinearLayoutActivity.this, item.title);
+            }
 
-    private void addItems(ArrayList<ItemModel> list) {
-        mDataAdapter.addAll(list);
-        mCurrentCounter += list.size();
+            @Override
+            public void onItemLongClick(View view, int position) {
+                ItemModel item = mDataAdapter.getDataList().get(position);
+                AppToast.showShortText(MulItemLinearLayoutActivity.this, "onItemLongClick - " + item.title);
+            }
+        });
+
     }
 
     private void notifyDataSetChanged() {
         mLRecyclerViewAdapter.notifyDataSetChanged();
     }
 
+    private void addItems(ArrayList<ItemModel> list) {
+
+        mDataAdapter.addAll(list);
+        mCurrentCounter += list.size();
+
+    }
+
     private static class PreviewHandler extends Handler {
 
-        private WeakReference<EndlessStaggeredGridLayoutActivity> ref;
+        private WeakReference<MulItemLinearLayoutActivity> ref;
 
-        PreviewHandler(EndlessStaggeredGridLayoutActivity activity) {
+        PreviewHandler(MulItemLinearLayoutActivity activity) {
             ref = new WeakReference<>(activity);
         }
 
         @Override
         public void handleMessage(Message msg) {
-            final EndlessStaggeredGridLayoutActivity activity = ref.get();
+            final MulItemLinearLayoutActivity activity = ref.get();
             if (activity == null || activity.isFinishing()) {
                 return;
             }
-
             switch (msg.what) {
+
                 case -1:
                     if(activity.isRefresh){
                         activity.mDataAdapter.clear();
@@ -150,6 +196,7 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
                         if (newList.size() + currentSize >= TOTAL_COUNTER) {
                             break;
                         }
+
                         ItemModel item = new ItemModel();
                         item.id = currentSize + i;
                         item.title = "item" + (item.id);
@@ -163,10 +210,10 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
                     if(activity.isRefresh){
                         activity.isRefresh = false;
                         activity.mRecyclerView.refreshComplete();
-                        activity.notifyDataSetChanged();
-                    }else {
-                        RecyclerViewStateUtils.setFooterViewState(activity.mRecyclerView, LoadingFooter.State.Normal);
                     }
+
+                    RecyclerViewStateUtils.setFooterViewState(activity.mRecyclerView, LoadingFooter.State.Normal);
+                    activity.notifyDataSetChanged();
                     break;
                 case -2:
                     activity.notifyDataSetChanged();
@@ -175,10 +222,11 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
                     if(activity.isRefresh){
                         activity.isRefresh = false;
                         activity.mRecyclerView.refreshComplete();
-                        activity.notifyDataSetChanged();
-                    }else {
-                        RecyclerViewStateUtils.setFooterViewState(activity, activity.mRecyclerView, REQUEST_COUNT, LoadingFooter.State.NetWorkError, activity.mFooterClick);
                     }
+                    activity.notifyDataSetChanged();
+                    RecyclerViewStateUtils.setFooterViewState(activity, activity.mRecyclerView, REQUEST_COUNT, LoadingFooter.State.NetWorkError, activity.mFooterClick);
+                    break;
+                default:
                     break;
             }
         }
@@ -187,7 +235,7 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
     private View.OnClickListener mFooterClick = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            RecyclerViewStateUtils.setFooterViewState(EndlessStaggeredGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
+            RecyclerViewStateUtils.setFooterViewState(MulItemLinearLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
             requestData();
         }
     };
@@ -196,7 +244,7 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
      * 模拟请求网络
      */
     private void requestData() {
-
+        Log.d(TAG, "requestData");
         new Thread() {
 
             @Override
@@ -204,13 +252,13 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
                 super.run();
 
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(800);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
 
                 //模拟一下网络请求失败的情况
-                if(NetworkUtils.isNetAvailable(EndlessStaggeredGridLayoutActivity.this)) {
+                if(NetworkUtils.isNetAvailable(MulItemLinearLayoutActivity.this)) {
                     mHandler.sendEmptyMessage(-1);
                 } else {
                     mHandler.sendEmptyMessage(-3);
@@ -219,57 +267,93 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
         }.start();
     }
 
-    private class DataAdapter  extends ListBaseAdapter<ItemModel> {
+    private class DataAdapter extends ListBaseAdapter<ItemModel> {
+        private static final int TYPE_ITEM = 0; //普通类型
+        private static final int TYPE_PHOTO_ITEM = 1; //图文类型
 
         private LayoutInflater mLayoutInflater;
-        private int largeCardHeight, smallCardHeight;
 
         public DataAdapter(Context context) {
             mLayoutInflater = LayoutInflater.from(context);
-            largeCardHeight = (int)context.getResources().getDisplayMetrics().density * 300;
-            smallCardHeight = (int)context.getResources().getDisplayMetrics().density * 200;
+            mContext = context;
+        }
+
+        @Override
+        public int getItemViewType(int position) {
+            if (position %2 == 0) {
+                return TYPE_PHOTO_ITEM;
+            } else {
+                return TYPE_ITEM;
+            }
+
         }
 
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            return new ViewHolder(mLayoutInflater.inflate(R.layout.sample_item_card, parent, false));
-        }
 
-        @Override
-        public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-
-            ItemModel itemModel = mDataList.get(position);
-
-            ViewHolder viewHolder = (ViewHolder) holder;
-            viewHolder.textView.setText(itemModel.title);
-
-            //修改高度，模拟交错效果
-            viewHolder.cardView.getLayoutParams().height = position % 2 != 0 ? largeCardHeight : smallCardHeight;
-        }
-
-        @Override
-        public int getItemCount() {
-            return mDataList.size();
-        }
-
-        private class ViewHolder extends RecyclerView.ViewHolder {
-
-            private CardView cardView;
-            private TextView textView;
-
-            public ViewHolder(View itemView) {
-                super(itemView);
-                cardView = (CardView) itemView.findViewById(R.id.card_view);
-                textView = (TextView) itemView.findViewById(R.id.info_text);
-
+            switch (viewType) {
+                case TYPE_PHOTO_ITEM://图文类型
+                    return new PhotoViewHolder(mLayoutInflater.inflate(R.layout.list_item_pic, parent, false));
+                default:
+                    return new TextViewHolder(mLayoutInflater.inflate(R.layout.list_item_text, parent, false));
             }
         }
+
+        @Override
+        public void onBindViewHolder(RecyclerView.ViewHolder holder, final int position) {
+            ItemModel item = mDataList.get(position);
+
+
+            int itemViewType = getItemViewType(position);
+            switch (itemViewType) {
+                case TYPE_PHOTO_ITEM:
+                    PhotoViewHolder photoViewHolder = (PhotoViewHolder) holder;
+                    photoViewHolder.textView.setText(item.title);
+                    photoViewHolder.avatarImage.setImageResource(R.mipmap.icon);
+                    break;
+                default:
+                    TextViewHolder viewHolder = (TextViewHolder) holder;
+                    viewHolder.textView.setText(item.title);
+                    break;
+            }
+
+        }
+
+        private class TextViewHolder extends RecyclerView.ViewHolder {
+
+            private TextView textView;
+
+            public TextViewHolder(View itemView) {
+                super(itemView);
+                textView = (TextView) itemView.findViewById(R.id.info_text);
+            }
+        }
+        private class PhotoViewHolder extends RecyclerView.ViewHolder {
+
+            private TextView textView;
+            private ImageView avatarImage;
+
+            public PhotoViewHolder(View itemView) {
+                super(itemView);
+                textView = (TextView) itemView.findViewById(R.id.info_text);
+                avatarImage = (ImageView) itemView.findViewById(R.id.avatar_image);
+            }
+        }
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main_refresh, menu);
+        return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
             finish();
+        } else if (item.getItemId() == R.id.menu_refresh) {
+            mRecyclerView.forceToRefresh();
+            //mDataAdapter.remove(mLRecyclerViewAdapter.getAdapterPosition(false,3));
         }
         return true;
     }

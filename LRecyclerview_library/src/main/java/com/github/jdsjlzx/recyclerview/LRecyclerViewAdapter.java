@@ -103,14 +103,16 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
         mHeaderViews.add(view);
     }
 
-    public void addFooterView(View footer) {
+    public void addFooterView(View view) {
 
-        if (footer == null) {
+        if (view == null) {
             throw new RuntimeException("footer is null");
         }
-
-        mFooterViews.add(footer);
-        this.notifyDataSetChanged();
+        if (getFooterViewsCount() > 0) {
+            removeFooterView(getFooterView());
+        }
+        mFooterViews.add(view);
+        //this.notifyDataSetChanged();
     }
 
     /**
@@ -234,6 +236,47 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
     }
 
     @Override
+    public void onBindViewHolder(final RecyclerView.ViewHolder holder, int position, List<Object> payloads) {
+        if (payloads.isEmpty()) {
+            onBindViewHolder(holder,position);
+        } else {
+
+            if (isHeader(position) || isRefreshHeader(position)) {
+                return;
+            }
+            final int adjPosition = position - (getHeaderViewsCount() + 1);
+            int adapterCount;
+            if (mInnerAdapter != null) {
+                adapterCount = mInnerAdapter.getItemCount();
+                if (adjPosition < adapterCount) {
+                    mInnerAdapter.onBindViewHolder(holder, adjPosition, payloads);
+
+                    if (mOnItemClickListener != null) {
+                        holder.itemView.setOnClickListener(new View.OnClickListener()  {
+                            @Override
+                            public void onClick(View v)
+                            {
+                                mOnItemClickListener.onItemClick(holder.itemView, adjPosition);
+                            }
+                        });
+
+                        holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
+                            @Override
+                            public boolean onLongClick(View v)
+                            {
+                                mOnItemClickListener.onItemLongClick(holder.itemView, adjPosition);
+                                return true;
+                            }
+                        });
+                    }
+
+                }
+            }
+
+        }
+    }
+
+    @Override
     public int getItemCount() {
         if (mInnerAdapter != null) {
             return getHeaderViewsCount() + getFooterViewsCount() + mInnerAdapter.getItemCount() + 1;
@@ -344,7 +387,7 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
                 return adjPosition;
             }
         }else {
-            return  (position + getHeaderViewsCount()) - 1;
+            return  (position + getHeaderViewsCount()) + 1;
         }
 
         return -1;
