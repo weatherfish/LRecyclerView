@@ -2,6 +2,7 @@ package com.lzx.demo.ui;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -10,15 +11,22 @@ import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.github.jdsjlzx.interfaces.OnRefreshListener;
 import com.github.jdsjlzx.recyclerview.LRecyclerView;
 import com.github.jdsjlzx.recyclerview.LRecyclerViewAdapter;
+import com.github.why168.LoopViewPagerLayout;
+import com.github.why168.listener.OnLoadImageViewListener;
+import com.github.why168.modle.BannerInfo;
+import com.github.why168.modle.LoopStyle;
 import com.lzx.demo.R;
 import com.lzx.demo.base.ListBaseAdapter;
 import com.lzx.demo.bean.ItemModel;
+import com.lzx.demo.imageloader.ImageLoader;
+import com.lzx.demo.imageloader.ImageLoaderUtil;
 import com.lzx.demo.view.SampleFooter;
-import com.lzx.demo.view.SampleHeader;
 
 import java.util.ArrayList;
 
@@ -26,13 +34,15 @@ import java.util.ArrayList;
  *
  * 带HeaderView、FooterView的LinearLayout RecyclerView
  */
-public class LinearLayoutActivity extends AppCompatActivity {
+public class BannerHeaderLayoutActivity extends AppCompatActivity{
 
     private LRecyclerView mRecyclerView = null;
 
     private DataAdapter mDataAdapter = null;
 
     private LRecyclerViewAdapter mLRecyclerViewAdapter = null;
+
+    private LoopViewPagerLayout mLoopViewPagerLayout;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -61,10 +71,39 @@ public class LinearLayoutActivity extends AppCompatActivity {
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         //add a HeaderView
-        View header = LayoutInflater.from(this).inflate(R.layout.sample_header,(ViewGroup)findViewById(android.R.id.content), false);
+        //LoopViewPagerLayout使用方法详见github：https://github.com/why168/LoopViewPagerLayout
+        mLoopViewPagerLayout = (LoopViewPagerLayout) LayoutInflater.from(this).inflate(R.layout.layout_banner_header,(ViewGroup)findViewById(android.R.id.content), false);
+        mLoopViewPagerLayout.setLoop_ms(2000);//轮播的速度(毫秒)
+        mLoopViewPagerLayout.setLoop_duration(800);//滑动的速率(毫秒)
+        mLoopViewPagerLayout.setLoop_style(LoopStyle.Empty);//轮播的样式-默认empty
+        mLoopViewPagerLayout.initializeData(this);//初始化数据
+        ArrayList<BannerInfo> data = new ArrayList<>();
+        data.add(new BannerInfo<Integer>(R.mipmap.slient, "第一张图片"));
+        data.add(new BannerInfo<Integer>(R.mipmap.arrow_down, "第三张图片"));
+        data.add(new BannerInfo<Integer>(R.mipmap.ic_action_add, "第四张图片"));
+        data.add(new BannerInfo<Integer>(R.mipmap.smile, "第五张图片"));
+        mLoopViewPagerLayout.setOnLoadImageViewListener(new OnLoadImageViewListener() {
+            @Override
+            public void onLoadImageView(ImageView imageView, Object parameter) {
+                ImageLoaderUtil imageLoaderUtil = new ImageLoaderUtil();
+                ImageLoader imageLoader = new ImageLoader.Builder()
+                        .imgView(imageView)
+                        .url(parameter)
+                        .build();
 
-        mLRecyclerViewAdapter.addHeaderView(header);
-        mLRecyclerViewAdapter.addHeaderView(new SampleHeader(this));
+                imageLoaderUtil.loadImage(BannerHeaderLayoutActivity.this, imageLoader);
+            }
+
+            @Override
+            public ImageView createImageView(Context context) {
+                ImageView imageView = new ImageView(context);
+                imageView.setScaleType(ImageView.ScaleType.FIT_XY);
+                return imageView;
+            }
+        });
+        mLoopViewPagerLayout.setLoopData(data);
+
+        mLRecyclerViewAdapter.addHeaderView(mLoopViewPagerLayout);
 
         SampleFooter sampleFooter = new SampleFooter(this);
         sampleFooter.setOnClickListener(new View.OnClickListener() {
@@ -81,8 +120,9 @@ public class LinearLayoutActivity extends AppCompatActivity {
             }
         });
 
+
         //禁用下拉刷新功能
-        mRecyclerView.setPullRefreshEnabled(false);
+        mRecyclerView.setPullRefreshEnabled(true);
 
         //禁用自动加载更多功能
         mRecyclerView.setLoadMoreEnabled(false);
@@ -90,6 +130,31 @@ public class LinearLayoutActivity extends AppCompatActivity {
         //add a FooterView
         mLRecyclerViewAdapter.addFooterView(sampleFooter);
 
+        mRecyclerView.setOnRefreshListener(new OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                new Handler().postDelayed(new Runnable(){
+                    public void run() {
+                        mLRecyclerViewAdapter.notifyDataSetChanged();
+                        mRecyclerView.refreshComplete();
+                    }
+
+                }, 1000);
+            }
+        });
+
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mLoopViewPagerLayout.startLoop();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mLoopViewPagerLayout.stopLoop();
     }
 
     private class DataAdapter extends ListBaseAdapter<ItemModel> {
@@ -99,6 +164,7 @@ public class LinearLayoutActivity extends AppCompatActivity {
         public DataAdapter(Context context) {
             mLayoutInflater = LayoutInflater.from(context);
         }
+
 
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {

@@ -21,6 +21,7 @@ import com.github.jdsjlzx.view.LoadingFooter;
  *
  */
 public class LuRecyclerView extends RecyclerView {
+    private boolean mLoadMoreEnabled = true;
     private LScrollListener mLScrollListener;
     private OnLoadMoreListener mLoadMoreListener;
     private View mEmptyView;
@@ -102,9 +103,13 @@ public class LuRecyclerView extends RecyclerView {
     public void setAdapter(Adapter adapter) {
         mWrapAdapter = (LuRecyclerViewAdapter) adapter;
         super.setAdapter(mWrapAdapter);
+
+        mWrapAdapter.getInnerAdapter().registerAdapterDataObserver(mDataObserver);
         mDataObserver.onChanged();
 
-        mWrapAdapter.addFooterView(mFootView);
+        if(mLoadMoreEnabled) {
+            mWrapAdapter.addFooterView(mFootView);
+        }
 
     }
 
@@ -142,6 +147,27 @@ public class LuRecyclerView extends RecyclerView {
             }
         }
 
+        @Override
+        public void onItemRangeChanged(int positionStart, int itemCount) {
+            mWrapAdapter.notifyItemRangeChanged(positionStart + mWrapAdapter.getHeaderViewsCount(), itemCount);
+        }
+
+        @Override
+        public void onItemRangeInserted(int positionStart, int itemCount) {
+            mWrapAdapter.notifyItemRangeInserted(positionStart + mWrapAdapter.getHeaderViewsCount(), itemCount);
+        }
+
+        @Override
+        public void onItemRangeRemoved(int positionStart, int itemCount) {
+            mWrapAdapter.notifyItemRangeRemoved(positionStart + mWrapAdapter.getHeaderViewsCount(), itemCount);
+        }
+
+        @Override
+        public void onItemRangeMoved(int fromPosition, int toPosition, int itemCount) {
+            int headerViewsCountCount = mWrapAdapter.getHeaderViewsCount();
+            mWrapAdapter.notifyItemRangeChanged(fromPosition + headerViewsCountCount , toPosition + headerViewsCountCount + itemCount);
+        }
+
     }
 
     private int findMax(int[] lastPositions) {
@@ -172,6 +198,15 @@ public class LuRecyclerView extends RecyclerView {
      */
     public void setEmptyView(View emptyView) {
         this.mEmptyView = emptyView;
+    }
+
+    public void setLoadMoreEnabled(boolean enabled) {
+        mLoadMoreEnabled = enabled;
+        if (!enabled) {
+            if (mFootView instanceof LoadingFooter) {
+                mWrapAdapter.removeFooterView(mFootView);
+            }
+        }
     }
 
     public void setOnLoadMoreListener(OnLoadMoreListener listener) {
@@ -262,9 +297,9 @@ public class LuRecyclerView extends RecyclerView {
             mLScrollListener.onScrollStateChanged(state);
         }
 
-        if (mLoadMoreListener != null) {
+        if (mLoadMoreListener != null && mLoadMoreEnabled) {
 
-            if (currentScrollState == RecyclerView.SCROLL_STATE_IDLE || currentScrollState == RecyclerView.SCROLL_STATE_SETTLING) {
+            if (currentScrollState == RecyclerView.SCROLL_STATE_IDLE) {
                 RecyclerView.LayoutManager layoutManager = getLayoutManager();
                 int visibleItemCount = layoutManager.getChildCount();
                 int totalItemCount = layoutManager.getItemCount();

@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import com.github.jdsjlzx.interfaces.OnItemClickListener;
+import com.github.jdsjlzx.interfaces.OnItemLongClickListener;
 import com.github.jdsjlzx.view.ArrowRefreshHeader;
 
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
     private ArrowRefreshHeader mRefreshHeader;
 
     private OnItemClickListener mOnItemClickListener;
+    private OnItemLongClickListener mOnItemLongClickListener;
 
     /**
      * RecyclerView使用的，真正的Adapter
@@ -36,53 +38,11 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
     private ArrayList<View> mHeaderViews = new ArrayList<>();
     private ArrayList<View> mFooterViews = new ArrayList<>();
 
-    private RecyclerView.AdapterDataObserver mDataObserver = new RecyclerView.AdapterDataObserver() {
+    private SpanSizeLookup mSpanSizeLookup;
 
-        @Override
-        public void onChanged() {
-            notifyDataSetChanged();
-        }
-
-        @Override
-        public void onItemRangeChanged(int positionStart, int itemCount) {
-            notifyItemRangeChanged(positionStart + getHeaderViewsCount() + 1, itemCount);
-        }
-
-        @Override
-        public void onItemRangeInserted(int positionStart, int itemCount) {
-            notifyItemRangeInserted(positionStart + getHeaderViewsCount() + 1, itemCount);
-        }
-
-        @Override
-        public void onItemRangeRemoved(int positionStart, int itemCount) {
-            notifyItemRangeRemoved(positionStart + getHeaderViewsCount() + 1, itemCount);
-        }
-
-        @Override
-        public void onItemRangeMoved(int fromPosition, int toPosition, int itemCount) {
-            int headerViewsCountCount = getHeaderViewsCount();
-            notifyItemRangeChanged(fromPosition + headerViewsCountCount + 1, toPosition + headerViewsCountCount + 1 + itemCount);
-        }
-    };
 
     public LRecyclerViewAdapter(RecyclerView.Adapter innerAdapter) {
-        setAdapter(innerAdapter);
-    }
-
-    /**
-     * 设置adapter
-     * @param adapter
-     */
-    public void setAdapter(RecyclerView.Adapter<RecyclerView.ViewHolder> adapter) {
-
-        if (mInnerAdapter != null) {
-            notifyItemRangeRemoved(getHeaderViewsCount(), mInnerAdapter.getItemCount());
-            mInnerAdapter.unregisterAdapterDataObserver(mDataObserver);
-        }
-
-        this.mInnerAdapter = adapter;
-        mInnerAdapter.registerAdapterDataObserver(mDataObserver);
-        notifyItemRangeInserted(getHeaderViewsCount(), mInnerAdapter.getItemCount());
+        this.mInnerAdapter = innerAdapter;
     }
 
     public void setRefreshHeader(ArrowRefreshHeader refreshHeader){
@@ -108,11 +68,9 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
         if (view == null) {
             throw new RuntimeException("footer is null");
         }
-        if (getFooterViewsCount() > 0) {
-            removeFooterView(getFooterView());
-        }
+
+        removeFooterView();
         mFooterViews.add(view);
-        //this.notifyDataSetChanged();
     }
 
     /**
@@ -156,14 +114,22 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
         return mHeaderViews;
     }
 
-    public void removeHeaderView(View view) {
-        mHeaderViews.remove(view);
-        this.notifyDataSetChanged();
+    public void removeHeaderView() {
+        if (getHeaderViewsCount() > 0) {
+            View headerView = getHeaderView();
+            mHeaderViews.remove(headerView);
+            this.notifyDataSetChanged();
+        }
+
     }
 
-    public void removeFooterView(View view) {
-        mFooterViews.remove(view);
-        this.notifyDataSetChanged();
+    public void removeFooterView() {
+        if (getFooterViewsCount() > 0) {
+            View footerView = getFooterView();
+            mFooterViews.remove(footerView);
+            this.notifyDataSetChanged();
+        }
+
     }
 
     public int getHeaderViewsCount() {
@@ -221,11 +187,14 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
                         }
                     });
 
+                }
+
+                if (mOnItemLongClickListener != null) {
                     holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
                         @Override
                         public boolean onLongClick(View v)
                         {
-                            mOnItemClickListener.onItemLongClick(holder.itemView, adjPosition);
+                            mOnItemLongClickListener.onItemLongClick(holder.itemView, adjPosition);
                             return true;
                         }
                     });
@@ -250,26 +219,6 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
                 adapterCount = mInnerAdapter.getItemCount();
                 if (adjPosition < adapterCount) {
                     mInnerAdapter.onBindViewHolder(holder, adjPosition, payloads);
-
-                    if (mOnItemClickListener != null) {
-                        holder.itemView.setOnClickListener(new View.OnClickListener()  {
-                            @Override
-                            public void onClick(View v)
-                            {
-                                mOnItemClickListener.onItemClick(holder.itemView, adjPosition);
-                            }
-                        });
-
-                        holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
-                            @Override
-                            public boolean onLongClick(View v)
-                            {
-                                mOnItemClickListener.onItemLongClick(holder.itemView, adjPosition);
-                                return true;
-                            }
-                        });
-                    }
-
                 }
             }
 
@@ -329,8 +278,14 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
             gridManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
                 @Override
                 public int getSpanSize(int position) {
-                    return (isHeader(position) || isFooter(position) || isRefreshHeader(position))
-                            ? gridManager.getSpanCount() : 1;
+                    if (mSpanSizeLookup == null) {
+                        return (isHeader(position) || isFooter(position) || isRefreshHeader(position))
+                                ? gridManager.getSpanCount() : 1;
+                    } else {
+                        return (isHeader(position) || isFooter(position) || isRefreshHeader(position))
+                                ? gridManager.getSpanCount() : mSpanSizeLookup.getSpanSize(gridManager,  (position - (getHeaderViewsCount() + 1)));
+                    }
+
                 }
             });
         }
@@ -393,9 +348,24 @@ public class LRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.View
         return -1;
     }
 
-    public void setOnItemClickListener(OnItemClickListener mOnItemClickListener)
-    {
-        this.mOnItemClickListener = mOnItemClickListener;
+    public void setOnItemClickListener(OnItemClickListener itemClickListener) {
+        this.mOnItemClickListener = itemClickListener;
+    }
+
+    public void setOnItemLongClickListener(OnItemLongClickListener itemLongClickListener) {
+        this.mOnItemLongClickListener = itemLongClickListener;
+    }
+
+    public interface SpanSizeLookup {
+        int getSpanSize(GridLayoutManager gridLayoutManager, int position);
+    }
+
+    /**
+     * @param spanSizeLookup
+     * only used to GridLayoutManager
+     */
+    public void setSpanSizeLookup(SpanSizeLookup spanSizeLookup) {
+        this.mSpanSizeLookup = spanSizeLookup;
     }
 
 }

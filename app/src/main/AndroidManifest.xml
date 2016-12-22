@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".AppContext"
@@ -36,9 +36,14 @@
         <activity android:name=".ui.SwipeRefreshLayoutActivity" />
         <activity android:name=".ui.ExpandableRecyclerViewOneActivity" />
         <activity android:name=".ui.MulItemLinearLayoutActivity" />
+        <activity android:name=".ui.MulItemGridLayoutActivity" />
         <activity android:name=".ui.SwipeMenuActivity" />
         <activity android:name=".ui.SwipeDeleteActivity" />
         <activity android:name=".ui.PartialRefreshActivity" />
+        <activity android:name=".ui.NestRecyclerViewActivity" />
+        <activity android:name=".ui.Nest2RecyclerViewActivity" />
+        <activity android:name=".ui.BannerHeaderLayoutActivity" />
+        <activity android:name=".ui.ListDragMenuActivity" />
     </application>
 
 </manifest>

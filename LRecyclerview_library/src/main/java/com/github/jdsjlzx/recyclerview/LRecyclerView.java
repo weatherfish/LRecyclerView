@@ -26,7 +26,9 @@ import com.github.jdsjlzx.view.LoadingFooter;
  *
  */
 public class LRecyclerView extends RecyclerView {
-    private boolean pullRefreshEnabled = true;
+    private boolean mPullRefreshEnabled = true;
+    private boolean mLoadMoreEnabled = true;
+    private boolean flag = false;//标记是否setAdapter
     private OnRefreshListener mRefreshListener;
     private OnLoadMoreListener mLoadMoreListener;
     private LScrollListener mLScrollListener;
@@ -105,23 +107,35 @@ public class LRecyclerView extends RecyclerView {
     }
 
     private void init() {
-        if (pullRefreshEnabled) {
+        if (mPullRefreshEnabled) {
             mRefreshHeader = new ArrowRefreshHeader(getContext());
             mRefreshHeader.setProgressStyle(mRefreshProgressStyle);
         }
+
         LoadingFooter footView = new LoadingFooter(getContext());
         mFootView = footView;
         mFootView.setVisibility(GONE);
     }
 
+
     @Override
     public void setAdapter(Adapter adapter) {
         mWrapAdapter = (LRecyclerViewAdapter) adapter;
         super.setAdapter(mWrapAdapter);
+
+        if(flag) {
+            mWrapAdapter.getInnerAdapter().unregisterAdapterDataObserver(mDataObserver);
+        }
+        mWrapAdapter.getInnerAdapter().registerAdapterDataObserver(mDataObserver);
+        flag = true;
+
         mDataObserver.onChanged();
 
         mWrapAdapter.setRefreshHeader(mRefreshHeader);
-        mWrapAdapter.addFooterView(mFootView);
+
+        if (mLoadMoreEnabled) {
+            mWrapAdapter.addFooterView(mFootView);
+        }
 
     }
 
@@ -131,9 +145,9 @@ public class LRecyclerView extends RecyclerView {
             Adapter<?> adapter = getAdapter();
 
             if (adapter instanceof LRecyclerViewAdapter) {
-                LRecyclerViewAdapter headerAndFooterAdapter = (LRecyclerViewAdapter) adapter;
-                if (headerAndFooterAdapter.getInnerAdapter() != null && mEmptyView != null) {
-                    int count = headerAndFooterAdapter.getInnerAdapter().getItemCount();
+                LRecyclerViewAdapter lRecyclerViewAdapter = (LRecyclerViewAdapter) adapter;
+                if (lRecyclerViewAdapter.getInnerAdapter() != null && mEmptyView != null) {
+                    int count = lRecyclerViewAdapter.getInnerAdapter().getItemCount();
                     if (count == 0) {
                         mEmptyView.setVisibility(View.VISIBLE);
                         LRecyclerView.this.setVisibility(View.GONE);
@@ -157,6 +171,28 @@ public class LRecyclerView extends RecyclerView {
             if (mWrapAdapter != null) {
                 mWrapAdapter.notifyDataSetChanged();
             }
+
+        }
+
+        @Override
+        public void onItemRangeChanged(int positionStart, int itemCount) {
+            mWrapAdapter.notifyItemRangeChanged(positionStart + mWrapAdapter.getHeaderViewsCount() + 1, itemCount);
+        }
+
+        @Override
+        public void onItemRangeInserted(int positionStart, int itemCount) {
+            mWrapAdapter.notifyItemRangeInserted(positionStart + mWrapAdapter.getHeaderViewsCount() + 1, itemCount);
+        }
+
+        @Override
+        public void onItemRangeRemoved(int positionStart, int itemCount) {
+            mWrapAdapter.notifyItemRangeRemoved(positionStart + mWrapAdapter.getHeaderViewsCount() + 1, itemCount);
+        }
+
+        @Override
+        public void onItemRangeMoved(int fromPosition, int toPosition, int itemCount) {
+            int headerViewsCountCount = mWrapAdapter.getHeaderViewsCount();
+            mWrapAdapter.notifyItemRangeChanged(fromPosition + headerViewsCountCount + 1, toPosition + headerViewsCountCount + 1 + itemCount);
         }
 
     }
@@ -169,12 +205,11 @@ public class LRecyclerView extends RecyclerView {
         switch (ev.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 mLastY = ev.getRawY();
-
                 break;
             case MotionEvent.ACTION_MOVE:
                 final float deltaY = ev.getRawY() - mLastY;
                 mLastY = ev.getRawY();
-                if (isOnTop() && pullRefreshEnabled  && (appbarState == AppBarStateChangeListener.State.EXPANDED)) {
+                if (isOnTop() && mPullRefreshEnabled  && (appbarState == AppBarStateChangeListener.State.EXPANDED)) {
                     mRefreshHeader.onMove(deltaY / DRAG_RATE);
                     if (mRefreshHeader.getVisibleHeight() > 0 && mRefreshHeader.getState() < ArrowRefreshHeader.STATE_REFRESHING) {
                         return false;
@@ -184,7 +219,7 @@ public class LRecyclerView extends RecyclerView {
                 break;
             default:
                 mLastY = -1; // reset
-                if (isOnTop() && pullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED) {
+                if (isOnTop() && mPullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED) {
                     if (mRefreshHeader.releaseAction()) {
                         if (mRefreshListener != null) {
                             mRefreshListener.onRefresh();
@@ -217,7 +252,7 @@ public class LRecyclerView extends RecyclerView {
     }
 
     private boolean isOnTop() {
-        if (pullRefreshEnabled && mRefreshHeader.getParent() != null) {
+        if (mPullRefreshEnabled && mRefreshHeader.getParent() != null) {
             return true;
         } else {
             return false;
@@ -232,6 +267,7 @@ public class LRecyclerView extends RecyclerView {
      */
     public void setEmptyView(View emptyView) {
         this.mEmptyView = emptyView;
+        mDataObserver.onChanged();
     }
 
     public void refreshComplete() {
@@ -248,7 +284,22 @@ public class LRecyclerView extends RecyclerView {
     }
 
     public void setPullRefreshEnabled(boolean enabled) {
-        pullRefreshEnabled = enabled;
+        mPullRefreshEnabled = enabled;
+    }
+
+    public void setLoadMoreEnabled(boolean enabled) {
+        mLoadMoreEnabled = enabled;
+        if (!enabled) {
+            //添加了footview
+            if(mWrapAdapter.getFooterViewsCount() > 0) {
+                mFootView = mWrapAdapter.getFooterView();
+            }
+            if (mFootView instanceof LoadingFooter && null != mWrapAdapter) {
+                mWrapAdapter.removeFooterView();
+            } else {
+                mFootView.setVisibility(VISIBLE);
+            }
+        }
     }
 
     public void setRefreshProgressStyle(int style) {
@@ -287,7 +338,7 @@ public class LRecyclerView extends RecyclerView {
     }
 
     public void setRefreshing(boolean refreshing) {
-        if (refreshing && pullRefreshEnabled && mRefreshListener != null) {
+        if (refreshing && mPullRefreshEnabled && mRefreshListener != null) {
             mRefreshHeader.setState(ArrowRefreshHeader.STATE_REFRESHING);
             mRefreshHeaderHeight = mRefreshHeader.getMeasuredHeight();
             mRefreshHeader.onMove(mRefreshHeaderHeight);
@@ -296,11 +347,15 @@ public class LRecyclerView extends RecyclerView {
     }
 
     public void forceToRefresh() {
-        LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(this);
-        if(state == LoadingFooter.State.Loading) {
-            return;
+
+        if (mWrapAdapter.getFooterView() instanceof  LoadingFooter) {
+            LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(this);
+            if(state == LoadingFooter.State.Loading) {
+                return;
+            }
         }
-        if (pullRefreshEnabled && mRefreshListener != null) {
+
+        if (mPullRefreshEnabled && mRefreshListener != null) {
             scrollToPosition(0);
             mRefreshHeader.setState(ArrowRefreshHeader.STATE_REFRESHING);
             mRefreshHeader.onMove(mRefreshHeaderHeight);
@@ -377,7 +432,7 @@ public class LRecyclerView extends RecyclerView {
             mLScrollListener.onScrollStateChanged(state);
         }
 
-        if (mLoadMoreListener != null) {
+        if (mLoadMoreListener != null && mLoadMoreEnabled) {
             if (currentScrollState == RecyclerView.SCROLL_STATE_IDLE) {
                 RecyclerView.LayoutManager layoutManager = getLayoutManager();
                 int visibleItemCount = layoutManager.getChildCount();

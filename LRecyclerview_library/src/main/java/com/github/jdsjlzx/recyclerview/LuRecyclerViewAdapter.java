@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import com.github.jdsjlzx.interfaces.OnItemClickListener;
+import com.github.jdsjlzx.interfaces.OnItemLongClickListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,7 @@ public class LuRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.Vie
 
 
     private OnItemClickListener mOnItemClickListener;
+    private OnItemLongClickListener mOnItemLongClickListener;
 
     /**
      * RecyclerView使用的，真正的Adapter
@@ -33,53 +35,11 @@ public class LuRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.Vie
     private ArrayList<View> mHeaderViews = new ArrayList<>();
     private ArrayList<View> mFooterViews = new ArrayList<>();
 
-    private RecyclerView.AdapterDataObserver mDataObserver = new RecyclerView.AdapterDataObserver() {
+    private SpanSizeLookup mSpanSizeLookup;
 
-        @Override
-        public void onChanged() {
-            notifyDataSetChanged();
-        }
-
-        @Override
-        public void onItemRangeChanged(int positionStart, int itemCount) {
-            notifyItemRangeChanged(positionStart + getHeaderViewsCount(), itemCount);
-        }
-
-        @Override
-        public void onItemRangeInserted(int positionStart, int itemCount) {
-            notifyItemRangeInserted(positionStart + getHeaderViewsCount(), itemCount);
-        }
-
-        @Override
-        public void onItemRangeRemoved(int positionStart, int itemCount) {
-            notifyItemRangeRemoved(positionStart + getHeaderViewsCount(), itemCount);
-        }
-
-        @Override
-        public void onItemRangeMoved(int fromPosition, int toPosition, int itemCount) {
-            int headerViewsCountCount = getHeaderViewsCount();
-            notifyItemRangeChanged(fromPosition + headerViewsCountCount, toPosition + headerViewsCountCount + itemCount);
-        }
-    };
 
     public LuRecyclerViewAdapter(RecyclerView.Adapter innerAdapter) {
-        setAdapter(innerAdapter);
-    }
-
-    /**
-     * 设置adapter
-     * @param adapter
-     */
-    public void setAdapter(RecyclerView.Adapter<RecyclerView.ViewHolder> adapter) {
-
-        if (mInnerAdapter != null) {
-            notifyItemRangeRemoved(getHeaderViewsCount(), mInnerAdapter.getItemCount());
-            mInnerAdapter.unregisterAdapterDataObserver(mDataObserver);
-        }
-
-        this.mInnerAdapter = adapter;
-        mInnerAdapter.registerAdapterDataObserver(mDataObserver);
-        notifyItemRangeInserted(getHeaderViewsCount(), mInnerAdapter.getItemCount());
+        this.mInnerAdapter = innerAdapter;
     }
 
     public RecyclerView.Adapter getInnerAdapter() {
@@ -96,14 +56,15 @@ public class LuRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.Vie
         mHeaderViews.add(view);
     }
 
-    public void addFooterView(View footer) {
+    public void addFooterView(View view) {
 
-        if (footer == null) {
+        if (view == null) {
             throw new RuntimeException("footer is null");
         }
-
-        mFooterViews.add(footer);
-        this.notifyDataSetChanged();
+        if (getFooterViewsCount() > 0) {
+            removeFooterView(getFooterView());
+        }
+        mFooterViews.add(view);
     }
 
     /**
@@ -171,7 +132,7 @@ public class LuRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.Vie
 
     public boolean isFooter(int position) {
         int lastPosition = getItemCount() - 1;
-        return getFooterViewsCount() > 0 && position == lastPosition;
+        return getFooterViewsCount() > 0 && position >= lastPosition;
     }
 
     @Override
@@ -205,17 +166,38 @@ public class LuRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.Vie
                             mOnItemClickListener.onItemClick(holder.itemView, adjPosition);
                         }
                     });
+                }
 
+                if (mOnItemLongClickListener != null) {
                     holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
                         @Override
                         public boolean onLongClick(View v)
                         {
-                            mOnItemClickListener.onItemLongClick(holder.itemView, adjPosition);
+                            mOnItemLongClickListener.onItemLongClick(holder.itemView, adjPosition);
                             return true;
                         }
                     });
                 }
 
+            }
+        }
+    }
+
+    @Override
+    public void onBindViewHolder(RecyclerView.ViewHolder holder, int position, List<Object> payloads) {
+        if (payloads.isEmpty()) {
+            onBindViewHolder(holder,position);
+        } else {
+            if (isHeader(position)) {
+                return;
+            }
+            final int adjPosition = position - getHeaderViewsCount();
+            int adapterCount;
+            if (mInnerAdapter != null) {
+                adapterCount = mInnerAdapter.getItemCount();
+                if (adjPosition < adapterCount) {
+                    mInnerAdapter.onBindViewHolder(holder, adjPosition, payloads);
+                }
             }
         }
     }
@@ -269,8 +251,13 @@ public class LuRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             gridManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
                 @Override
                 public int getSpanSize(int position) {
-                    return (isHeader(position) || isFooter(position))
-                            ? gridManager.getSpanCount() : 1;
+                    if (mSpanSizeLookup == null) {
+                        return (isHeader(position) || isFooter(position))
+                                ? gridManager.getSpanCount() : 1;
+                    } else {
+                        return (isHeader(position) || isFooter(position))
+                                ? gridManager.getSpanCount() : mSpanSizeLookup.getSpanSize(gridManager, (position - (getHeaderViewsCount() + 1)));
+                    }
                 }
             });
         }
@@ -338,4 +325,21 @@ public class LuRecyclerViewAdapter extends RecyclerView.Adapter<RecyclerView.Vie
         this.mOnItemClickListener = mOnItemClickListener;
     }
 
+
+    public void setOnItemLongClickListener(OnItemLongClickListener itemLongClickListener)
+    {
+        this.mOnItemLongClickListener = itemLongClickListener;
+    }
+
+    public interface SpanSizeLookup {
+        int getSpanSize(GridLayoutManager gridLayoutManager, int position);
+    }
+
+    /**
+     * @param spanSizeLookup
+     * only used to GridLayoutManager
+     */
+    public void setSpanSizeLookup(SpanSizeLookup spanSizeLookup) {
+        this.mSpanSizeLookup = spanSizeLookup;
+    }
 }

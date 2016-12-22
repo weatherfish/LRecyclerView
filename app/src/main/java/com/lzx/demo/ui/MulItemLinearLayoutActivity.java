@@ -18,6 +18,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.github.jdsjlzx.interfaces.OnItemClickListener;
+import com.github.jdsjlzx.interfaces.OnItemLongClickListener;
 import com.github.jdsjlzx.interfaces.OnLoadMoreListener;
 import com.github.jdsjlzx.interfaces.OnRefreshListener;
 import com.github.jdsjlzx.recyclerview.LRecyclerView;
@@ -68,7 +69,6 @@ public class MulItemLinearLayoutActivity extends AppCompatActivity{
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         mRecyclerView = (LRecyclerView) findViewById(R.id.list);
-
 
         mDataAdapter = new DataAdapter(this);
         mLRecyclerViewAdapter = new LRecyclerViewAdapter(mDataAdapter);
@@ -145,13 +145,16 @@ public class MulItemLinearLayoutActivity extends AppCompatActivity{
                 ItemModel item = mDataAdapter.getDataList().get(position);
                 AppToast.showShortText(MulItemLinearLayoutActivity.this, item.title);
             }
+        });
 
+        mLRecyclerViewAdapter.setOnItemLongClickListener(new OnItemLongClickListener() {
             @Override
             public void onItemLongClick(View view, int position) {
                 ItemModel item = mDataAdapter.getDataList().get(position);
                 AppToast.showShortText(MulItemLinearLayoutActivity.this, "onItemLongClick - " + item.title);
             }
         });
+
 
     }
 
@@ -286,6 +289,7 @@ public class MulItemLinearLayoutActivity extends AppCompatActivity{
                 return TYPE_ITEM;
             }
 
+
         }
 
         @Override
@@ -302,7 +306,6 @@ public class MulItemLinearLayoutActivity extends AppCompatActivity{
         @Override
         public void onBindViewHolder(RecyclerView.ViewHolder holder, final int position) {
             ItemModel item = mDataList.get(position);
-
 
             int itemViewType = getItemViewType(position);
             switch (itemViewType) {
@@ -353,7 +356,6 @@ public class MulItemLinearLayoutActivity extends AppCompatActivity{
             finish();
         } else if (item.getItemId() == R.id.menu_refresh) {
             mRecyclerView.forceToRefresh();
-            //mDataAdapter.remove(mLRecyclerViewAdapter.getAdapterPosition(false,3));
         }
         return true;
     }

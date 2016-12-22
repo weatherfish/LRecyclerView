@@ -1,20 +1,15 @@
 package com.lzx.demo.ui;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.github.jdsjlzx.interfaces.OnRefreshListener;
@@ -25,7 +20,6 @@ import com.github.jdsjlzx.util.RecyclerViewStateUtils;
 import com.github.jdsjlzx.view.LoadingFooter;
 import com.lzx.demo.R;
 import com.lzx.demo.adapter.SwipeMenuAdapter;
-import com.lzx.demo.base.ListBaseAdapter;
 import com.lzx.demo.bean.ItemModel;
 import com.lzx.demo.util.NetworkUtils;
 import com.lzx.demo.util.TLog;
@@ -133,42 +127,14 @@ public class SwipeDeleteActivity extends AppCompatActivity{
             }
         });
 
-        /*mRecyclerView.setOnLoadMoreListener(new OnLoadMoreListener() {
-            @Override
-            public void onLoadMore() {
-                LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(mRecyclerView);
-                if(state == LoadingFooter.State.Loading) {
-                    Log.d(TAG, "the state is Loading, just wait..");
-                    return;
-                }
-
-                if (mCurrentCounter < TOTAL_COUNTER) {
-                    // loading more
-                    RecyclerViewStateUtils.setFooterViewState(SwipeDeleteActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
-                    requestData();
-                } else {
-                    //the end
-                    RecyclerViewStateUtils.setFooterViewState(SwipeDeleteActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.TheEnd, null);
-
-                }
-            }
-        });*/
-
-
         mRecyclerView.setRefreshing(true);
 
-        //点击事件要adapter内部实现，详见说明
+        //侧滑删除请不要使用下面接口，SwipeMenuAdapter内部实现item点击事件
         /*mLRecyclerViewAdapter.setOnItemClickListener(new OnItemClickListener() {
             @Override
             public void onItemClick(View view, int position) {
                 ItemModel item = mDataAdapter.getDataList().get(position);
                 AppToast.showShortText(SwipeDeleteActivity.this, item.title);
-            }
-
-            @Override
-            public void onItemLongClick(View view, int position) {
-                ItemModel item = mDataAdapter.getDataList().get(position);
-                AppToast.showShortText(SwipeDeleteActivity.this, "onItemLongClick - " + item.title);
             }
         });*/
 
@@ -286,39 +252,6 @@ public class SwipeDeleteActivity extends AppCompatActivity{
         }.start();
     }
 
-    private class DataAdapter extends ListBaseAdapter<ItemModel> {
-
-        private LayoutInflater mLayoutInflater;
-
-        public DataAdapter(Context context) {
-            mLayoutInflater = LayoutInflater.from(context);
-            mContext = context;
-        }
-
-        @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            return new ViewHolder(mLayoutInflater.inflate(R.layout.list_item_text, parent, false));
-        }
-
-        @Override
-        public void onBindViewHolder(RecyclerView.ViewHolder holder, final int position) {
-            ItemModel item = mDataList.get(position);
-
-            ViewHolder viewHolder = (ViewHolder) holder;
-            viewHolder.textView.setText(item.title);
-
-        }
-
-        private class ViewHolder extends RecyclerView.ViewHolder {
-
-            private TextView textView;
-
-            public ViewHolder(View itemView) {
-                super(itemView);
-                textView = (TextView) itemView.findViewById(R.id.info_text);
-            }
-        }
-    }
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
@@ -332,7 +265,6 @@ public class SwipeDeleteActivity extends AppCompatActivity{
             finish();
         } else if (item.getItemId() == R.id.menu_refresh) {
             mRecyclerView.forceToRefresh();
-            //mDataAdapter.remove(mLRecyclerViewAdapter.getAdapterPosition(false,3));
         }
         return true;
     }
