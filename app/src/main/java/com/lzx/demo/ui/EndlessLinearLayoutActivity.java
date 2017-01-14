@@ -1,12 +1,10 @@
 package com.lzx.demo.ui;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -14,19 +12,18 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 
+import com.github.jdsjlzx.ItemDecoration.DividerDecoration;
 import com.github.jdsjlzx.interfaces.OnItemClickListener;
 import com.github.jdsjlzx.interfaces.OnItemLongClickListener;
 import com.github.jdsjlzx.interfaces.OnLoadMoreListener;
+import com.github.jdsjlzx.interfaces.OnNetWorkErrorListener;
 import com.github.jdsjlzx.interfaces.OnRefreshListener;
 import com.github.jdsjlzx.recyclerview.LRecyclerView;
 import com.github.jdsjlzx.recyclerview.LRecyclerViewAdapter;
 import com.github.jdsjlzx.recyclerview.ProgressStyle;
-import com.github.jdsjlzx.util.RecyclerViewStateUtils;
-import com.github.jdsjlzx.view.LoadingFooter;
 import com.lzx.demo.R;
-import com.lzx.demo.base.ListBaseAdapter;
+import com.lzx.demo.adapter.DataAdapter;
 import com.lzx.demo.bean.ItemModel;
 import com.lzx.demo.util.AppToast;
 import com.lzx.demo.util.NetworkUtils;
@@ -41,7 +38,7 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
     private static final String TAG = "lzx";
 
     /**服务器端一共多少条数据*/
-    private static final int TOTAL_COUNTER = 64;
+    private static final int TOTAL_COUNTER = 34;//如果服务器没有返回总数据或者总页数，这里设置为最大值比如10000，什么时候没有数据了根据接口返回判断
 
     /**每一页展示多少条数据*/
     private static final int REQUEST_COUNT = 10;
@@ -56,9 +53,6 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
     private PreviewHandler mHandler = new PreviewHandler(this);
     private LRecyclerViewAdapter mLRecyclerViewAdapter = null;
 
-    private boolean isRefresh = false;
-
-    @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.sample_ll_activity);
@@ -68,15 +62,24 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
 
         mRecyclerView = (LRecyclerView) findViewById(R.id.list);
 
-
         mDataAdapter = new DataAdapter(this);
         mLRecyclerViewAdapter = new LRecyclerViewAdapter(mDataAdapter);
         mRecyclerView.setAdapter(mLRecyclerViewAdapter);
 
+        DividerDecoration divider = new DividerDecoration.Builder(this)
+                .setHeight(R.dimen.default_divider_height)
+                .setPadding(R.dimen.default_divider_padding)
+                .setColorResource(R.color.split)
+                .build();
+
+        //mRecyclerView.setHasFixedSize(true);
+        mRecyclerView.addItemDecoration(divider);
+
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        mRecyclerView.setRefreshProgressStyle(ProgressStyle.BallSpinFadeLoader);
+        mRecyclerView.setRefreshProgressStyle(ProgressStyle.LineSpinFadeLoader);
         mRecyclerView.setArrowImageView(R.drawable.ic_pulltorefresh_arrow);
+        mRecyclerView.setLoadingMoreProgressStyle(ProgressStyle.BallSpinFadeLoader);
 
         //add a HeaderView
         final View header = LayoutInflater.from(this).inflate(R.layout.sample_header,(ViewGroup)findViewById(android.R.id.content), false);
@@ -86,11 +89,9 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
             @Override
             public void onRefresh() {
 
-                RecyclerViewStateUtils.setFooterViewState(mRecyclerView,LoadingFooter.State.Normal);
                 mDataAdapter.clear();
                 mLRecyclerViewAdapter.notifyDataSetChanged();//fix bug:crapped or attached views may not be recycled. isScrap:false isAttached:true
                 mCurrentCounter = 0;
-                isRefresh = true;
                 requestData();
             }
         });
@@ -98,20 +99,13 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
         mRecyclerView.setOnLoadMoreListener(new OnLoadMoreListener() {
             @Override
             public void onLoadMore() {
-                LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(mRecyclerView);
-                if(state == LoadingFooter.State.Loading) {
-                    Log.d(TAG, "the state is Loading, just wait..");
-                    return;
-                }
 
                 if (mCurrentCounter < TOTAL_COUNTER) {
                     // loading more
-                    RecyclerViewStateUtils.setFooterViewState(EndlessLinearLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
                     requestData();
                 } else {
                     //the end
-                    RecyclerViewStateUtils.setFooterViewState(EndlessLinearLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.TheEnd, null);
-
+                    mRecyclerView.setNoMore(true);
                 }
             }
         });
@@ -138,6 +132,12 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
 
         });
 
+        //设置头部加载颜色
+        mRecyclerView.setHeaderViewColor(R.color.colorAccent, R.color.dark ,android.R.color.white);
+        //设置底部加载颜色
+        mRecyclerView.setFooterViewColor(R.color.colorAccent, R.color.dark ,android.R.color.white);
+        //设置底部加载文字提示
+        mRecyclerView.setFooterViewHint("拼命加载中","已经全部为你呈现了","网络不给力啊，点击再试一次吧");
 
         mRecyclerView.setRefreshing(true);
 
@@ -145,7 +145,8 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
             @Override
             public void onItemClick(View view, int position) {
                 ItemModel item = mDataAdapter.getDataList().get(position);
-                AppToast.showShortText(EndlessLinearLayoutActivity.this, item.title);
+                AppToast.showShortText(getApplicationContext(), item.title);
+                mDataAdapter.remove(position);
             }
 
         });
@@ -154,9 +155,11 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
             @Override
             public void onItemLongClick(View view, int position) {
                 ItemModel item = mDataAdapter.getDataList().get(position);
-                AppToast.showShortText(EndlessLinearLayoutActivity.this, "onItemLongClick - " + item.title);
+                AppToast.showShortText(getApplicationContext(), "onItemLongClick - " + item.title);
             }
         });
+
+
 
     }
 
@@ -171,7 +174,7 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
 
     }
 
-    private static class PreviewHandler extends Handler {
+    private class PreviewHandler extends Handler {
 
         private WeakReference<EndlessLinearLayoutActivity> ref;
 
@@ -188,7 +191,7 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
             switch (msg.what) {
 
                 case -1:
-                    if(activity.isRefresh){
+                    if(activity.mRecyclerView.isPulldownToRefresh()){
                         activity.mDataAdapter.clear();
                         mCurrentCounter = 0;
                     }
@@ -209,41 +212,38 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
                         newList.add(item);
                     }
 
-
                     activity.addItems(newList);
 
-                    if(activity.isRefresh){
-                        activity.isRefresh = false;
+                    if(activity.mRecyclerView.isPulldownToRefresh()){
                         activity.mRecyclerView.refreshComplete();
+                        activity.notifyDataSetChanged();
+                    }else {
+                        activity.mRecyclerView.loadMoreComplete();
                     }
 
-                    RecyclerViewStateUtils.setFooterViewState(activity.mRecyclerView, LoadingFooter.State.Normal);
-                    activity.notifyDataSetChanged();
                     break;
                 case -2:
                     activity.notifyDataSetChanged();
                     break;
                 case -3:
-                    if(activity.isRefresh){
-                        activity.isRefresh = false;
+                    if(activity.mRecyclerView.isPulldownToRefresh()){
                         activity.mRecyclerView.refreshComplete();
+                        activity.notifyDataSetChanged();
+                    }else {
+                        activity.mRecyclerView.setOnNetWorkErrorListener(new OnNetWorkErrorListener() {
+                            @Override
+                            public void reload() {
+                                requestData();
+                            }
+                        });
                     }
-                    activity.notifyDataSetChanged();
-                    RecyclerViewStateUtils.setFooterViewState(activity, activity.mRecyclerView, REQUEST_COUNT, LoadingFooter.State.NetWorkError, activity.mFooterClick);
+
                     break;
                 default:
                     break;
             }
         }
     }
-
-    private View.OnClickListener mFooterClick = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            RecyclerViewStateUtils.setFooterViewState(EndlessLinearLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
-            requestData();
-        }
-    };
 
     /**
      * 模拟请求网络
@@ -257,7 +257,7 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
                 super.run();
 
                 try {
-                    Thread.sleep(800);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -270,40 +270,6 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
                 }
             }
         }.start();
-    }
-
-    private class DataAdapter extends ListBaseAdapter<ItemModel> {
-
-        private LayoutInflater mLayoutInflater;
-
-        public DataAdapter(Context context) {
-            mLayoutInflater = LayoutInflater.from(context);
-            mContext = context;
-        }
-
-        @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            return new ViewHolder(mLayoutInflater.inflate(R.layout.list_item_text, parent, false));
-        }
-
-        @Override
-        public void onBindViewHolder(RecyclerView.ViewHolder holder, final int position) {
-            ItemModel item = mDataList.get(position);
-
-            ViewHolder viewHolder = (ViewHolder) holder;
-            viewHolder.textView.setText(item.title);
-
-        }
-
-        private class ViewHolder extends RecyclerView.ViewHolder {
-
-            private TextView textView;
-
-            public ViewHolder(View itemView) {
-                super(itemView);
-                textView = (TextView) itemView.findViewById(R.id.info_text);
-            }
-        }
     }
 
     @Override

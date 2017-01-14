@@ -26,13 +26,13 @@ allprojects {
 Step 2. 在你的model的build.gradle文件中增加LRecyclerView依赖。
 
 ```groovy
-compile 'com.github.jdsjlzx:LRecyclerView:1.3.0'
+compile 'com.github.jdsjlzx:LRecyclerView:1.3.3'
 ```
 
 LRecyclerView requires at minimum Java 7 or Android 4.0.
 
 ##JavaDoc
-https://jitpack.io/com/github/jdsjlzx/LRecyclerView/1.2.9/javadoc/
+https://jitpack.io/com/github/jdsjlzx/LRecyclerView/1.3.3/javadoc/
 
 ##项目简述
 1. 下拉刷新、滑动到底部自动加载下页数据； 
@@ -188,7 +188,16 @@ AVLoadingIndicatorView库有多少效果，LRecyclerView就支持多少下拉刷
 
 拷贝LRecyclerview_library中的文件文件layout_recyclerview_list_footer_loading.xml到你的工程中，修改后即可。
 
+###设置下拉刷新Header和Footer文字内容和颜色
 
+```java
+//设置头部加载颜色
+mRecyclerView.setHeaderViewColor(R.color.colorAccent, R.color.dark ,android.R.color.white);
+//设置底部加载颜色
+mRecyclerView.setFooterViewColor(R.color.colorAccent, R.color.dark ,android.R.color.white);
+//设置底部加载文字提示
+mRecyclerView.setFooterViewHint("拼命加载中","已经全部为你呈现了","网络不给力啊，点击再试一次吧");
+```
 ###开启和禁止下拉刷新功能
 
 ```java
@@ -225,7 +234,6 @@ mLRecyclerViewAdapter.notifyDataSetChanged();
 ```java
 @Override
 public void onRefresh() {
-    RecyclerViewStateUtils.setFooterViewState(mRecyclerView,LoadingFooter.State.Normal);
     mDataAdapter.clear();
     mCurrentCounter = 0;
     isRefresh = true;
@@ -271,7 +279,6 @@ RecyclerViewStateUtils.setFooterViewState(getActivity(), mRecyclerView, getPageS
 private View.OnClickListener mFooterClick = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            RecyclerViewStateUtils.setFooterViewState(getActivity(), mRecyclerView, getPageSize(), LoadingFooter.State.Loading, null);
             requestData();
         }
     };
@@ -323,13 +330,34 @@ mRecyclerView.setEmptyView(view);
 
 ##关于添加分割线
 
-尽量不要使用Decoration,可以在Item布局的底部添加一条线，如下所示：
-```groovy
-<View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#dddddd" />
+经过不断优化，LRecyclerView支持了ItemDecoration，使用如下所示：
+
+LinearLayoutManager布局设置如下：
+
+```java
+DividerDecoration divider = new DividerDecoration.Builder(this,mLRecyclerViewAdapter)
+                .setHeight(R.dimen.default_divider_height)
+                .setPadding(R.dimen.default_divider_padding)
+                .setColorResource(R.color.split)
+                .build();
+mRecyclerView.addItemDecoration(divider);
 ```
+
+GridLayoutManager布局设置如下：
+
+```java
+int spacing = getResources().getDimensionPixelSize(R.dimen.dp_4);
+mRecyclerView.addItemDecoration(SpacesItemDecoration.newInstance(spacing, spacing, manager.getSpanCount(), Color.GRAY));
+
+//根据需要选择使用GridItemDecoration还是SpacesItemDecoration
+GridItemDecoration divider = new GridItemDecoration.Builder(this)
+        .setHorizontal(R.dimen.default_divider_padding)
+        .setVertical(R.dimen.default_divider_padding)
+        .setColorResource(R.color.split)
+        .build();
+//mRecyclerView.addItemDecoration(divider);
+```
+根据需要选择使用GridItemDecoration还是SpacesItemDecoration，SpacesItemDecoration（支持多类型布局）
 
 ##滑动删除
 
@@ -368,7 +396,7 @@ mLRecyclerViewAdapter.addFooterView(new SampleFooter(this));
 
 ```
 
-2.不要SwipeRefreshLayout与LRecyclerView一起使用，会有冲突，如果你实在想用，请参考SwipeRefreshLayoutActivity类的实现。
+2.不要SwipeRefreshLayout与LRecyclerView一起使用，会有冲突，为了更好的满足广大用户，新增了LuRecyclerView类，可以与SwipeRefreshLayout搭配使用，详细请参考SwipeRefreshLayoutActivity类的实现。
 
 ##Thanks
 

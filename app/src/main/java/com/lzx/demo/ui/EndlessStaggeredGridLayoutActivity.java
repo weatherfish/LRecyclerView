@@ -7,23 +7,19 @@ import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.support.v7.widget.Toolbar;
-import android.view.LayoutInflater;
 import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.github.jdsjlzx.interfaces.OnLoadMoreListener;
+import com.github.jdsjlzx.interfaces.OnNetWorkErrorListener;
 import com.github.jdsjlzx.interfaces.OnRefreshListener;
 import com.github.jdsjlzx.recyclerview.LRecyclerView;
 import com.github.jdsjlzx.recyclerview.LRecyclerViewAdapter;
-import com.github.jdsjlzx.util.RecyclerViewStateUtils;
-import com.github.jdsjlzx.view.LoadingFooter;
 import com.lzx.demo.R;
 import com.lzx.demo.base.ListBaseAdapter;
+import com.lzx.demo.base.SuperViewHolder;
 import com.lzx.demo.bean.ItemModel;
 import com.lzx.demo.util.NetworkUtils;
 import com.lzx.demo.view.SampleHeader;
@@ -89,19 +85,12 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
         mRecyclerView.setOnLoadMoreListener(new OnLoadMoreListener() {
             @Override
             public void onLoadMore() {
-                LoadingFooter.State state = RecyclerViewStateUtils.getFooterViewState(mRecyclerView);
-                if(state == LoadingFooter.State.Loading) {
-                    return;
-                }
-
                 if (mCurrentCounter < TOTAL_COUNTER) {
                     // loading more
-                    RecyclerViewStateUtils.setFooterViewState(EndlessStaggeredGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
                     requestData();
                 } else {
                     //the end
-                    RecyclerViewStateUtils.setFooterViewState(EndlessStaggeredGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.TheEnd, null);
-
+                    mRecyclerView.setNoMore(true);
                 }
             }
         });
@@ -120,7 +109,7 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
         mLRecyclerViewAdapter.notifyDataSetChanged();
     }
 
-    private static class PreviewHandler extends Handler {
+    private class PreviewHandler extends Handler {
 
         private WeakReference<EndlessStaggeredGridLayoutActivity> ref;
 
@@ -137,7 +126,7 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
 
             switch (msg.what) {
                 case -1:
-                    if(activity.isRefresh){
+                    if(activity.mRecyclerView.isPulldownToRefresh()){
                         activity.mDataAdapter.clear();
                         mCurrentCounter = 0;
                     }
@@ -160,37 +149,32 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
 
                     activity.addItems(newList);
 
-                    if(activity.isRefresh){
-                        activity.isRefresh = false;
+                    if(activity.mRecyclerView.isPulldownToRefresh()){
                         activity.mRecyclerView.refreshComplete();
                         activity.notifyDataSetChanged();
                     }else {
-                        RecyclerViewStateUtils.setFooterViewState(activity.mRecyclerView, LoadingFooter.State.Normal);
+                        activity.mRecyclerView.loadMoreComplete();
                     }
                     break;
                 case -2:
                     activity.notifyDataSetChanged();
                     break;
                 case -3:
-                    if(activity.isRefresh){
-                        activity.isRefresh = false;
+                    if(activity.mRecyclerView.isPulldownToRefresh()){
                         activity.mRecyclerView.refreshComplete();
                         activity.notifyDataSetChanged();
                     }else {
-                        RecyclerViewStateUtils.setFooterViewState(activity, activity.mRecyclerView, REQUEST_COUNT, LoadingFooter.State.NetWorkError, activity.mFooterClick);
+                        activity.mRecyclerView.setOnNetWorkErrorListener(new OnNetWorkErrorListener() {
+                            @Override
+                            public void reload() {
+                                requestData();
+                            }
+                        });
                     }
                     break;
             }
         }
     }
-
-    private View.OnClickListener mFooterClick = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            RecyclerViewStateUtils.setFooterViewState(EndlessStaggeredGridLayoutActivity.this, mRecyclerView, REQUEST_COUNT, LoadingFooter.State.Loading, null);
-            requestData();
-        }
-    };
 
     /**
      * 模拟请求网络
@@ -221,49 +205,33 @@ public class EndlessStaggeredGridLayoutActivity extends AppCompatActivity {
 
     private class DataAdapter  extends ListBaseAdapter<ItemModel> {
 
-        private LayoutInflater mLayoutInflater;
         private int largeCardHeight, smallCardHeight;
 
         public DataAdapter(Context context) {
-            mLayoutInflater = LayoutInflater.from(context);
+            super(context);
             largeCardHeight = (int)context.getResources().getDisplayMetrics().density * 300;
             smallCardHeight = (int)context.getResources().getDisplayMetrics().density * 200;
         }
 
+
         @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            return new ViewHolder(mLayoutInflater.inflate(R.layout.sample_item_card, parent, false));
+        public int getLayoutId() {
+            return R.layout.sample_item_card;
         }
 
         @Override
-        public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+        public void onBindItemHolder(SuperViewHolder holder, int position) {
+            CardView cardView =  holder.getView(R.id.card_view);
+            TextView textView = holder.getView(R.id.info_text);
 
             ItemModel itemModel = mDataList.get(position);
 
-            ViewHolder viewHolder = (ViewHolder) holder;
-            viewHolder.textView.setText(itemModel.title);
+            textView.setText(itemModel.title);
 
             //修改高度，模拟交错效果
-            viewHolder.cardView.getLayoutParams().height = position % 2 != 0 ? largeCardHeight : smallCardHeight;
+            cardView.getLayoutParams().height = position % 2 != 0 ? largeCardHeight : smallCardHeight;
         }
 
-        @Override
-        public int getItemCount() {
-            return mDataList.size();
-        }
-
-        private class ViewHolder extends RecyclerView.ViewHolder {
-
-            private CardView cardView;
-            private TextView textView;
-
-            public ViewHolder(View itemView) {
-                super(itemView);
-                cardView = (CardView) itemView.findViewById(R.id.card_view);
-                textView = (TextView) itemView.findViewById(R.id.info_text);
-
-            }
-        }
     }
 
     @Override

@@ -12,6 +12,7 @@ import android.view.View;
 import android.view.ViewParent;
 
 import com.github.jdsjlzx.interfaces.OnLoadMoreListener;
+import com.github.jdsjlzx.interfaces.OnNetWorkErrorListener;
 import com.github.jdsjlzx.view.LoadingFooter;
 
 /**
@@ -22,6 +23,8 @@ import com.github.jdsjlzx.view.LoadingFooter;
  */
 public class LuRecyclerView extends RecyclerView {
     private boolean mLoadMoreEnabled = true;
+    private boolean flag = false;//标记是否setAdapter
+    private boolean isNoMore = false;
     private LScrollListener mLScrollListener;
     private OnLoadMoreListener mLoadMoreListener;
     private View mEmptyView;
@@ -45,11 +48,6 @@ public class LuRecyclerView extends RecyclerView {
      * 最后一个可见的item的位置
      */
     private int lastVisibleItemPosition;
-
-    /**
-     * 当前滑动的状态
-     */
-    private int currentScrollState = 0;
 
     /**
      * 触发在上下滑动监听器的容差距离
@@ -94,7 +92,7 @@ public class LuRecyclerView extends RecyclerView {
     }
 
     private void init() {
-        LoadingFooter footView = new LoadingFooter(getContext());
+        LoadingFooter footView = new LoadingFooter(getContext().getApplicationContext());
         mFootView = footView;
         mFootView.setVisibility(GONE);
     }
@@ -104,7 +102,12 @@ public class LuRecyclerView extends RecyclerView {
         mWrapAdapter = (LuRecyclerViewAdapter) adapter;
         super.setAdapter(mWrapAdapter);
 
+        if(flag) {
+            mWrapAdapter.getInnerAdapter().unregisterAdapterDataObserver(mDataObserver);
+        }
         mWrapAdapter.getInnerAdapter().registerAdapterDataObserver(mDataObserver);
+        flag = true;
+
         mDataObserver.onChanged();
 
         if(mLoadMoreEnabled) {
@@ -170,26 +173,57 @@ public class LuRecyclerView extends RecyclerView {
 
     }
 
-    private int findMax(int[] lastPositions) {
-        int max = lastPositions[0];
-        for (int value : lastPositions) {
-            if (value > max) {
-                max = value;
-            }
+    public void setNoMore(boolean noMore){
+        isNoMore = noMore;
+        if(isNoMore) {
+            setFooterViewState(LoadingFooter.State.NoMore,true);
+        } else {
+            setFooterViewState(LoadingFooter.State.Normal,true);
         }
-        return max;
     }
 
-    private int findMin(int[] firstPositions) {
-        int min = firstPositions[0];
-        for (int value : firstPositions) {
-            if (value < min) {
-                min = value;
-            }
-        }
-        return min;
+    public void loadMoreComplete() {
+        setFooterViewState(LoadingFooter.State.Normal,false);
     }
 
+    private void setFooterViewState(LoadingFooter.State state,boolean isScroolUp) {
+
+        if (mFootView instanceof LoadingFooter) {
+            mFootView.setVisibility(VISIBLE);
+            ((LoadingFooter) mFootView).setState(state);
+        }
+        if(isScroolUp) {
+            scrollToPosition(mWrapAdapter.getItemCount() - 1);
+        }
+
+    }
+
+    public void setOnNetWorkErrorListener(final OnNetWorkErrorListener listener) {
+        final LoadingFooter loadingFooter = ((LoadingFooter) mFootView);
+        loadingFooter.setState(LoadingFooter.State.NetWorkError);
+        loadingFooter.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setFooterViewState(LoadingFooter.State.Loading,false);
+                listener.reload();
+            }
+        });
+    }
+
+    public void setFootViewHint(String loading, String noMore,String noNetWork) {
+        if(mFootView instanceof LoadingFooter){
+            LoadingFooter loadingFooter = ((LoadingFooter) mFootView);
+            loadingFooter.setLoadingHint(loading);
+            loadingFooter.setNoMoreHint(noMore);
+            loadingFooter.setNoNetWorkHint(noNetWork);
+        }
+    }
+
+    public void setLoadingMoreProgressStyle(int style) {
+        if (mFootView instanceof LoadingFooter) {
+            ((LoadingFooter) mFootView).setProgressStyle(style);
+        }
+    }
 
     /**
      * set view when no content item
@@ -203,8 +237,13 @@ public class LuRecyclerView extends RecyclerView {
     public void setLoadMoreEnabled(boolean enabled) {
         mLoadMoreEnabled = enabled;
         if (!enabled) {
-            if (mFootView instanceof LoadingFooter) {
-                mWrapAdapter.removeFooterView(mFootView);
+            if(mWrapAdapter.getFooterViewsCount() > 0) {
+                mFootView = mWrapAdapter.getFooterView();
+            }
+            if (mFootView instanceof LoadingFooter && null != mWrapAdapter) {
+                mWrapAdapter.removeFooterView();
+            } else {
+                mFootView.setVisibility(VISIBLE);
             }
         }
     }
@@ -291,7 +330,7 @@ public class LuRecyclerView extends RecyclerView {
     @Override
     public void onScrollStateChanged(int state) {
         super.onScrollStateChanged(state);
-        currentScrollState = state;
+        int currentScrollState = state;
 
         if (mLScrollListener != null) {
             mLScrollListener.onScrollStateChanged(state);
@@ -343,6 +382,16 @@ public class LuRecyclerView extends RecyclerView {
         }
     }
 
+    private int findMax(int[] lastPositions) {
+        int max = lastPositions[0];
+        for (int value : lastPositions) {
+            if (value > max) {
+                max = value;
+            }
+        }
+        return max;
+    }
+
     public enum LayoutManagerType {
         LinearLayout,
         StaggeredGridLayout,
@@ -352,7 +401,6 @@ public class LuRecyclerView extends RecyclerView {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        //解决LRecyclerView与CollapsingToolbarLayout滑动冲突的问题
         AppBarLayout appBarLayout = null;
         ViewParent p = getParent();
         while (p != null) {
@@ -361,7 +409,7 @@ public class LuRecyclerView extends RecyclerView {
             }
             p = p.getParent();
         }
-        if(p instanceof CoordinatorLayout) {
+        if(p!=null && p instanceof CoordinatorLayout) {
             CoordinatorLayout coordinatorLayout = (CoordinatorLayout)p;
             final int childCount = coordinatorLayout.getChildCount();
             for (int i = childCount - 1; i >= 0; i--) {
