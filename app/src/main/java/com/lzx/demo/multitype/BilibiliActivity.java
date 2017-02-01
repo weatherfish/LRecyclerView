@@ -24,8 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- *
- *
+ * BetterAdapter的运用
+ * http://www.jcodecraeer.com/a/anzhuokaifa/androidkaifa/2016/1125/6806.html
  */
 public class BilibiliActivity extends AppCompatActivity {
 
@@ -68,13 +68,13 @@ public class BilibiliActivity extends AppCompatActivity {
                 new Handler().postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        mRecyclerView.refreshComplete();
+                        mRecyclerView.refreshComplete(10);
                     }
                 },1000);
             }
         });
 
-        mRecyclerView.setRefreshing(true);
+        mRecyclerView.refresh();
         mRecyclerView.setLoadMoreEnabled(false);
         //是否允许嵌套滑动
         mRecyclerView.setNestedScrollingEnabled(false);

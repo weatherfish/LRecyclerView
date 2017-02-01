@@ -4,7 +4,6 @@ import android.content.Context;
 import android.support.v4.content.ContextCompat;
 import android.text.TextUtils;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewStub;
@@ -13,10 +12,11 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.github.jdsjlzx.R;
+import com.github.jdsjlzx.interfaces.ILoadMoreFooter;
 import com.github.jdsjlzx.progressindicator.AVLoadingIndicatorView;
 import com.github.jdsjlzx.recyclerview.ProgressStyle;
 
-public class LoadingFooter extends RelativeLayout {
+public class LoadingFooter extends RelativeLayout implements ILoadMoreFooter{
 
     protected State mState = State.Normal;
     private View mLoadingView;
@@ -53,7 +53,7 @@ public class LoadingFooter extends RelativeLayout {
         inflate(context, R.layout.layout_recyclerview_list_footer, this);
         setOnClickListener(null);
 
-        setState(State.Normal, true);
+        onReset();//初始为隐藏状态
 
         indicatorColor = ContextCompat.getColor(getContext(), R.color.colorAccent);
         style = ProgressStyle.BallPulse;
@@ -107,6 +107,31 @@ public class LoadingFooter extends RelativeLayout {
 
     }
 
+    @Override
+    public void onReset() {
+        onComplete();
+    }
+
+    @Override
+    public void onLoading() {
+        setState(State.Loading);
+    }
+
+    @Override
+    public void onComplete() {
+        setState(State.Normal);
+    }
+
+    @Override
+    public void onNoMore() {
+        setState(State.NoMore);
+    }
+
+    @Override
+    public View getFootView() {
+        return this;
+    }
+
     /**
      * 设置状态
      *
@@ -145,7 +170,7 @@ public class LoadingFooter extends RelativeLayout {
                 if (mNetworkErrorView != null) {
                     mNetworkErrorView.setVisibility(GONE);
                 }
-                Log.e("lzx","mLoadingView == null  " + (mLoadingView == null));
+
                 if (mLoadingView == null) {
                     ViewStub viewStub = (ViewStub) findViewById(R.id.loading_viewstub);
                     mLoadingView = viewStub.inflate();
@@ -157,6 +182,7 @@ public class LoadingFooter extends RelativeLayout {
                 mLoadingView.setVisibility(showView ? VISIBLE : GONE);
 
                 mProgressView.setVisibility(View.VISIBLE);
+                mProgressView.removeAllViews();
                 mProgressView.addView(initIndicatorView(style));
 
                 mLoadingText.setText(TextUtils.isEmpty(loadingHint) ? getResources().getString(R.string.list_footer_loading) : loadingHint);
@@ -212,6 +238,7 @@ public class LoadingFooter extends RelativeLayout {
                 break;
         }
     }
+
 
     public enum State {
         Normal/**正常*/, NoMore/**加载到最底了*/, Loading/**加载中..*/, NetWorkError/**网络异常*/

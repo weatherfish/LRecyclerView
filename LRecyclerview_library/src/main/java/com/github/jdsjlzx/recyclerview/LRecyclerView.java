@@ -9,13 +9,13 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewParent;
 
-import com.github.jdsjlzx.interfaces.BaseRefreshHeader;
+import com.github.jdsjlzx.interfaces.ILoadMoreFooter;
+import com.github.jdsjlzx.interfaces.IRefreshHeader;
 import com.github.jdsjlzx.interfaces.OnLoadMoreListener;
 import com.github.jdsjlzx.interfaces.OnNetWorkErrorListener;
 import com.github.jdsjlzx.interfaces.OnRefreshListener;
@@ -31,24 +31,25 @@ import com.github.jdsjlzx.view.LoadingFooter;
 public class LRecyclerView extends RecyclerView {
     private boolean mPullRefreshEnabled = true;
     private boolean mLoadMoreEnabled = true;
-    private boolean isPulldownToRefresh = false;//是否下拉刷新
+    private boolean mRefreshing = false;//是否正在下拉刷新
+    private boolean mLoadingData = false;//是否正在加载数据
     private boolean flag = false;//标记是否setAdapter
     private OnRefreshListener mRefreshListener;
     private OnLoadMoreListener mLoadMoreListener;
     private LScrollListener mLScrollListener;
-    private ArrowRefreshHeader mRefreshHeader;
+    private IRefreshHeader mRefreshHeader;
+    private ILoadMoreFooter mLoadMoreFooter;
     private View mEmptyView;
     private View mFootView;
-    private int mRefreshProgressStyle = ProgressStyle.SysProgress;
-    private int mLoadingMoreProgressStyle = ProgressStyle.SysProgress;
+
     private final RecyclerView.AdapterDataObserver mDataObserver = new DataObserver();
     private float mLastY = -1;
-    private static final float DRAG_RATE = 2.2f;
+    private float sumOffSet;
+    private static final float DRAG_RATE = 2.0f;
     private int mPageSize = 10; //一次网络请求默认数量
 
     private LRecyclerViewAdapter mWrapAdapter;
     private boolean isNoMore = false;
-    private int mRefreshHeaderHeight;
     private boolean mIsVpDragger;
     private int mTouchSlop;
     private float startY;
@@ -119,16 +120,15 @@ public class LRecyclerView extends RecyclerView {
     private void init() {
         mTouchSlop = ViewConfiguration.get(getContext().getApplicationContext()).getScaledTouchSlop();
         if (mPullRefreshEnabled) {
-            mRefreshHeader = new ArrowRefreshHeader(getContext().getApplicationContext());
-            mRefreshHeader.setProgressStyle(mRefreshProgressStyle);
+            setRefreshHeader(new ArrowRefreshHeader(getContext().getApplicationContext()));
         }
 
-        LoadingFooter footView = new LoadingFooter(getContext().getApplicationContext());
-        footView.setProgressStyle(mLoadingMoreProgressStyle);
-        mFootView = footView;
-        mFootView.setVisibility(GONE);
-    }
+        if (mLoadMoreEnabled) {
+            setLoadMoreFooter(new LoadingFooter(getContext().getApplicationContext()));
+        }
 
+
+    }
 
     @Override
     public void setAdapter(Adapter adapter) {
@@ -155,7 +155,6 @@ public class LRecyclerView extends RecyclerView {
         @Override
         public void onChanged() {
             Adapter<?> adapter = getAdapter();
-            Log.e("lzx","onChanged");
             if (adapter instanceof LRecyclerViewAdapter) {
                 LRecyclerViewAdapter lRecyclerViewAdapter = (LRecyclerViewAdapter) adapter;
                 if (lRecyclerViewAdapter.getInnerAdapter() != null && mEmptyView != null) {
@@ -267,13 +266,15 @@ public class LRecyclerView extends RecyclerView {
         switch (ev.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 mLastY = ev.getRawY();
+                sumOffSet = 0;
                 break;
             case MotionEvent.ACTION_MOVE:
-                final float deltaY = ev.getRawY() - mLastY;
+                final float deltaY = (ev.getRawY() - mLastY) / DRAG_RATE;
                 mLastY = ev.getRawY();
+                sumOffSet += deltaY;
                 if (isOnTop() && mPullRefreshEnabled  && (appbarState == AppBarStateChangeListener.State.EXPANDED)) {
-                    mRefreshHeader.onMove(deltaY / DRAG_RATE);
-                    if (mRefreshHeader.getVisibleHeight() > 0 && mRefreshHeader.getState() < ArrowRefreshHeader.STATE_REFRESHING) {
+                    mRefreshHeader.onMove(deltaY, sumOffSet);
+                    if (mRefreshHeader.getVisibleHeight() > 0 && mRefreshing) {
                         return false;
                     }
                 }
@@ -282,12 +283,11 @@ public class LRecyclerView extends RecyclerView {
             default:
                 mLastY = -1; // reset
                 if (isOnTop() && mPullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED) {
-                    if (mRefreshHeader.releaseAction()) {
+                    if (mRefreshHeader.onRelease()) {
                         if (mRefreshListener != null) {
                             mFootView.setVisibility(GONE);
                             mRefreshListener.onRefresh();
-                            isPulldownToRefresh = true;
-
+                            mRefreshing = true;
                         }
                     }
                 }
@@ -307,12 +307,7 @@ public class LRecyclerView extends RecyclerView {
     }
 
     public boolean isOnTop() {
-        if (mPullRefreshEnabled && mRefreshHeader.getParent() != null) {
-            return true;
-        } else {
-            return false;
-        }
-
+        return  mPullRefreshEnabled && (mRefreshHeader.getHeaderView().getParent() != null);
     }
 
     /**
@@ -325,86 +320,92 @@ public class LRecyclerView extends RecyclerView {
         mDataObserver.onChanged();
     }
 
-    public void refreshComplete() {
-        isNoMore = false;
-        mRefreshHeader.refreshComplete();
-        isPulldownToRefresh = false;
-        setFooterViewState(LoadingFooter.State.Normal,false);
-    }
+    /**
+     *
+     * @param pageSize 一页加载的数量
+     */
+    public void refreshComplete(int pageSize) {
+        this.mPageSize = pageSize;
+        if (mRefreshing) {
+            isNoMore = false;
+            mRefreshHeader.refreshComplete();
+            mRefreshing = false;
+            if(mWrapAdapter.getInnerAdapter().getItemCount() < pageSize) {
+                mFootView.setVisibility(GONE);
+            }
+        } else if (mLoadingData) {
+            mLoadingData = false;
+            mLoadMoreFooter.onComplete();
+        }
 
-    public void loadMoreComplete() {
-        setFooterViewState(LoadingFooter.State.Normal,false);
     }
 
     /**
-     * 是否下拉刷新
-     * @return
+     * 设置是否已加载全部
+     * @param noMore
      */
-    public boolean isPulldownToRefresh() {
-        return isPulldownToRefresh;
-    }
-
     public void setNoMore(boolean noMore){
+        mLoadingData = false;
         isNoMore = noMore;
         if(isNoMore) {
-            setFooterViewState(LoadingFooter.State.NoMore,true);
+            mLoadMoreFooter.onNoMore();
         } else {
-            setFooterViewState(LoadingFooter.State.Normal,true);
+            mLoadMoreFooter.onComplete();
         }
     }
 
-    private void setRefreshHeader(BaseRefreshHeader refreshHeader) {
-        mRefreshHeader = (ArrowRefreshHeader) refreshHeader;
+    /**
+     * 设置自定义的headerview
+     */
+    private void setRefreshHeader(IRefreshHeader refreshHeader) {
+        this.mRefreshHeader = refreshHeader;
     }
 
+    /**
+     * 设置自定义的footerview
+     */
+    public void setLoadMoreFooter(ILoadMoreFooter loadMoreFooter) {
+        this.mLoadMoreFooter = loadMoreFooter;
+        mFootView = loadMoreFooter.getFootView();
+        mFootView.setVisibility(GONE);
+    }
 
     public void setPullRefreshEnabled(boolean enabled) {
         mPullRefreshEnabled = enabled;
     }
 
+    /**
+     * 到底加载是否可用
+     */
     public void setLoadMoreEnabled(boolean enabled) {
         if(mWrapAdapter == null){
             throw new NullPointerException("mWrapAdapter cannot be null, please make sure the variable mWrapAdapter have been initialized.");
         }
         mLoadMoreEnabled = enabled;
         if (!enabled) {
-            if(mWrapAdapter.getFooterViewsCount() > 0) {
-                mFootView = mWrapAdapter.getFooterView();
-            }
-            if (mFootView instanceof LoadingFooter && null != mWrapAdapter) {
+            if (null != mWrapAdapter) {
                 mWrapAdapter.removeFooterView();
             } else {
-                mFootView.setVisibility(VISIBLE);
+                mLoadMoreFooter.onReset();
             }
         }
     }
 
     public void setRefreshProgressStyle(int style) {
-        if (mRefreshHeader != null) {
-            mRefreshHeader.setProgressStyle(style);
+        if (mRefreshHeader != null && mRefreshHeader instanceof ArrowRefreshHeader) {
+            ((ArrowRefreshHeader) mRefreshHeader).setProgressStyle(style);
         }
     }
 
     public void setArrowImageView(int resId) {
-        if (mRefreshHeader != null) {
-            mRefreshHeader.setArrowImageView(resId);
+        if (mRefreshHeader != null && mRefreshHeader instanceof ArrowRefreshHeader) {
+            ((ArrowRefreshHeader) mRefreshHeader).setArrowImageView(resId);
         }
     }
 
     public void setLoadingMoreProgressStyle(int style) {
-        mLoadingMoreProgressStyle = style;
-        if (mFootView instanceof LoadingFooter) {
-            ((LoadingFooter) mFootView).setProgressStyle(style);
-        }
-    }
-
-    private void setFooterViewState(LoadingFooter.State state,boolean isScroolUp) {
-
-        if (mFootView instanceof LoadingFooter) {
-            ((LoadingFooter) mFootView).setState(state);
-        }
-        if(isScroolUp) {
-            scrollToPosition(mWrapAdapter.getItemCount() - 1);
+        if (mLoadMoreFooter != null && mLoadMoreFooter instanceof LoadingFooter) {
+            ((LoadingFooter) mLoadMoreFooter).setProgressStyle(style);
         }
 
     }
@@ -423,15 +424,15 @@ public class LRecyclerView extends RecyclerView {
         loadingFooter.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
-                setFooterViewState(LoadingFooter.State.Loading,false);
+                mLoadMoreFooter.onLoading();
                 listener.reload();
             }
         });
     }
 
     public void setFooterViewHint(String loading, String noMore, String noNetWork) {
-        if(mFootView instanceof LoadingFooter){
-            LoadingFooter loadingFooter = ((LoadingFooter) mFootView);
+        if (mLoadMoreFooter != null && mLoadMoreFooter instanceof LoadingFooter) {
+            LoadingFooter loadingFooter = ((LoadingFooter) mLoadMoreFooter);
             loadingFooter.setLoadingHint(loading);
             loadingFooter.setNoMoreHint(noMore);
             loadingFooter.setNoNetWorkHint(noNetWork);
@@ -445,8 +446,8 @@ public class LRecyclerView extends RecyclerView {
      * @param backgroundColor
      */
     public void setFooterViewColor(int indicatorColor, int hintColor, int backgroundColor) {
-        if(mFootView instanceof LoadingFooter){
-            LoadingFooter loadingFooter = ((LoadingFooter) mFootView);
+        if (mLoadMoreFooter != null && mLoadMoreFooter instanceof LoadingFooter) {
+            LoadingFooter loadingFooter = ((LoadingFooter) mLoadMoreFooter);
             loadingFooter.setIndicatorColor(ContextCompat.getColor(getContext(),indicatorColor));
             loadingFooter.setHintTextColor(hintColor);
             loadingFooter.setViewBackgroundColor(backgroundColor);
@@ -460,18 +461,13 @@ public class LRecyclerView extends RecyclerView {
      * @param backgroundColor
      */
     public void setHeaderViewColor(int indicatorColor, int hintColor, int backgroundColor) {
-        mRefreshHeader.setIndicatorColor(ContextCompat.getColor(getContext(),indicatorColor));
-        mRefreshHeader.setHintTextColor(hintColor);
-        mRefreshHeader.setViewBackgroundColor(backgroundColor);
+        if (mRefreshHeader != null && mRefreshHeader instanceof ArrowRefreshHeader) {
+            ArrowRefreshHeader arrowRefreshHeader = ((ArrowRefreshHeader) mRefreshHeader);
+            arrowRefreshHeader.setIndicatorColor(ContextCompat.getColor(getContext(),indicatorColor));
+            arrowRefreshHeader.setHintTextColor(hintColor);
+            arrowRefreshHeader.setViewBackgroundColor(backgroundColor);
+        }
 
-    }
-
-    /**
-     * 设置一次网络请求默认数量，在总数不足一页时使用该方法，隐藏底部的footview
-     * @param size
-     */
-    public void setPageSize(int size) {
-        this.mPageSize = size;
     }
 
     public void setLScrollListener(LScrollListener listener) {
@@ -489,35 +485,25 @@ public class LRecyclerView extends RecyclerView {
         void onScrollStateChanged(int state);
     }
 
-    public void setRefreshing(boolean refreshing) {
-        if (refreshing && mPullRefreshEnabled && mRefreshListener != null) {
-            mRefreshHeader.setState(ArrowRefreshHeader.STATE_REFRESHING);
-            mRefreshHeaderHeight = mRefreshHeader.getMeasuredHeight();
-            mRefreshHeader.onMove(mRefreshHeaderHeight);
+    public void refresh() {
+        if (mPullRefreshEnabled && mRefreshListener != null) {
+            mRefreshHeader.onRefreshing();
+            int offSet = mRefreshHeader.getHeaderView().getMeasuredHeight();
+            mRefreshHeader.onMove(offSet,offSet);
+
             mFootView.setVisibility(GONE);
             mRefreshListener.onRefresh();
-            isPulldownToRefresh = true;
+            mRefreshing = true;
         }
     }
 
     public void forceToRefresh() {
 
-        if (mFootView instanceof LoadingFooter) {
-            LoadingFooter loadingFooter = ((LoadingFooter) mFootView);
-            LoadingFooter.State state = loadingFooter.getState();
-            if(state == LoadingFooter.State.Loading) {
-                return;
-            }
+        if (mLoadingData) {
+            return;
         }
 
-        if (mPullRefreshEnabled && mRefreshListener != null) {
-            scrollToPosition(0);
-            mRefreshHeader.setState(ArrowRefreshHeader.STATE_REFRESHING);
-            mRefreshHeader.onMove(mRefreshHeaderHeight);
-            mFootView.setVisibility(GONE);
-            mRefreshListener.onRefresh();
-            isPulldownToRefresh = true;
-        }
+        refresh();
     }
 
 
@@ -598,19 +584,16 @@ public class LRecyclerView extends RecyclerView {
                         && lastVisibleItemPosition >= totalItemCount - 1
                         && totalItemCount > visibleItemCount
                         && !isNoMore
-                        //&& !mIsScrollDown
-                        && mRefreshHeader.getState() != ArrowRefreshHeader.STATE_REFRESHING) {
-                    if (mFootView instanceof LoadingFooter) {
-                        mFootView.setVisibility(View.VISIBLE);
-                        if(((LoadingFooter) mFootView).getState() == LoadingFooter.State.Loading) {
-                            return;
-                        } else {
-                            setFooterViewState(LoadingFooter.State.Loading,true);
-                            mLoadMoreListener.onLoadMore();
-                        }
+                        && !mRefreshing) {
 
+                    mFootView.setVisibility(View.VISIBLE);
+                    if (mLoadingData) {
+                        return;
+                    } else {
+                        mLoadingData = true;
+                        mLoadMoreFooter.onLoading();
+                        mLoadMoreListener.onLoadMore();
                     }
-
 
                 }
 

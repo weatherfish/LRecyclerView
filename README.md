@@ -26,13 +26,13 @@ allprojects {
 Step 2. 在你的model的build.gradle文件中增加LRecyclerView依赖。
 
 ```groovy
-compile 'com.github.jdsjlzx:LRecyclerView:1.3.3'
+compile 'com.github.jdsjlzx:LRecyclerView:1.3.4'
 ```
 
 LRecyclerView requires at minimum Java 7 or Android 4.0.
 
 ##JavaDoc
-https://jitpack.io/com/github/jdsjlzx/LRecyclerView/1.3.3/javadoc/
+https://jitpack.io/com/github/jdsjlzx/LRecyclerView/1.3.4/javadoc/
 
 ##项目简述
 1. 下拉刷新、滑动到底部自动加载下页数据； 
@@ -48,7 +48,20 @@ https://jitpack.io/com/github/jdsjlzx/LRecyclerView/1.3.3/javadoc/
 ### 注意：
 1. EndlessLinearLayoutActivity.java类里面有标准完整的使用方法，请尽量在这个界面看效果；
 2. 本着解耦的原则，能在demo中实现的就尽量不在libray中实现。
-
+3. libray中的sdk版本都是最新版本，如果你不想处理申请权限的问题，可以在你本地的app的build.gradle中如下设置：
+```groovy
+compileSdkVersion 25
+buildToolsVersion '25.0.2'
+    
+defaultConfig {
+        applicationId "com.github.jdsjlzx"
+        minSdkVersion 14
+        targetSdkVersion 22
+        versionCode 4
+        versionName "0.5.3"
+}
+```
+targetSdkVersion设置为22即可。
 
 
 ##Demo下载
@@ -184,9 +197,20 @@ AVLoadingIndicatorView库有多少效果，LRecyclerView就支持多少下拉刷
 
 ![这里写图片描述](http://img.blog.csdn.net/20160701173404897)
 
-###设置加载更多样式
 
-拷贝LRecyclerview_library中的文件文件layout_recyclerview_list_footer_loading.xml到你的工程中，修改后即可。
+###自定义下拉刷新View
+
+1. 自定义view实现IRefreshHeader接口；
+2. 调用LRecyclerView提供的setRefreshHeader(IRefreshHeader refreshHeader)即可。
+
+```java
+/**
+ * 设置自定义的RefreshHeader
+ */
+private void setRefreshHeader(IRefreshHeader refreshHeader) {
+    this.mRefreshHeader = refreshHeader;
+}
+```
 
 ###设置下拉刷新Header和Footer文字内容和颜色
 
@@ -198,6 +222,13 @@ mRecyclerView.setFooterViewColor(R.color.colorAccent, R.color.dark ,android.R.co
 //设置底部加载文字提示
 mRecyclerView.setFooterViewHint("拼命加载中","已经全部为你呈现了","网络不给力啊，点击再试一次吧");
 ```
+
+记得设置ProgressStyle：
+```java
+mRecyclerView.setRefreshProgressStyle(ProgressStyle.LineSpinFadeLoader);
+mRecyclerView.setLoadingMoreProgressStyle(ProgressStyle.BallSpinFadeLoader);
+```
+
 ###开启和禁止下拉刷新功能
 
 ```java
@@ -229,18 +260,19 @@ mLRecyclerViewAdapter.notifyDataSetChanged();
 ```
 
 ###下拉刷新清空数据
-有的时候，需要下拉的时候情况数据并更新UI，可以这么做：
+有的时候，需要下拉的时候清空数据并更新UI，可以这么做：
 
 ```java
 @Override
 public void onRefresh() {
     mDataAdapter.clear();
-    mCurrentCounter = 0;
-    isRefresh = true;
+    mLRecyclerViewAdapter.notifyDataSetChanged();//必须调用此方法
+    mCurrentCounter = 0;
+    isRefresh = true;
     requestData();
 }
 ```
-如果不需要下拉的时候情况数据并更新UI，如下即可：
+如果不需要下拉的时候清空数据并更新UI，如下即可：
 
 ```java
 @Override
@@ -264,7 +296,7 @@ mRecyclerView.setLoadMoreEnabled(false);;
 默认是开启。如果不需要自动加载更多功能（也就是不需要分页）手动设置为false即可。
 
 ### 加载网络异常处理
---------
+
 加载数据时如果网络异常或者断网，LRecyclerView为你提供了重新加载的机制。
 
 效果图：

@@ -13,7 +13,7 @@ import com.github.jdsjlzx.interfaces.OnRefreshListener;
 import com.github.jdsjlzx.recyclerview.LRecyclerView;
 import com.github.jdsjlzx.recyclerview.LRecyclerViewAdapter;
 import com.lzx.demo.R;
-import com.lzx.demo.adapter.ShopAdapter;
+import com.lzx.demo.adapter.ShopAdapterBase;
 import com.lzx.demo.bean.Goods;
 import com.lzx.demo.bean.MultipleItem;
 import com.lzx.demo.view.SampleHeader;
@@ -30,7 +30,7 @@ public class Nest2RecyclerViewActivity extends AppCompatActivity{
 
     private LRecyclerView mRecyclerView = null;
 
-    private ShopAdapter mShopAdapter = null;
+    private ShopAdapterBase mShopAdapter = null;
 
     private LRecyclerViewAdapter mLRecyclerViewAdapter = null;
 
@@ -48,7 +48,7 @@ public class Nest2RecyclerViewActivity extends AppCompatActivity{
         mRecyclerView = (LRecyclerView) findViewById(R.id.list);
         mRecyclerView.setNestedScrollingEnabled(false);
 
-        mShopAdapter = new ShopAdapter(this,mGoodsList);
+        mShopAdapter = new ShopAdapterBase(this,mGoodsList);
 
         //setLayoutManager must before setAdapter
         GridLayoutManager layoutManager = new GridLayoutManager(this, 2);
@@ -90,13 +90,13 @@ public class Nest2RecyclerViewActivity extends AppCompatActivity{
                 new Handler().postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        mRecyclerView.refreshComplete();
+                        mRecyclerView.refreshComplete(10);
                     }
                 },1000);
             }
         });
 
-        mRecyclerView.setRefreshing(true);
+        mRecyclerView.refresh();
 
         //是否允许嵌套滑动
         mRecyclerView.setNestedScrollingEnabled(false);
