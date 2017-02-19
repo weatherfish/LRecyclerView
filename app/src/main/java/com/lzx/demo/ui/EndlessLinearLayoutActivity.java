@@ -93,6 +93,7 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
                 mLRecyclerViewAdapter.notifyDataSetChanged();//fix bug:crapped or attached views may not be recycled. isScrap:false isAttached:true
                 mCurrentCounter = 0;
                 requestData();
+
             }
         });
 
@@ -144,9 +145,12 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
         mLRecyclerViewAdapter.setOnItemClickListener(new OnItemClickListener() {
             @Override
             public void onItemClick(View view, int position) {
-                ItemModel item = mDataAdapter.getDataList().get(position);
-                AppToast.showShortText(getApplicationContext(), item.title);
-                mDataAdapter.remove(position);
+                if (mDataAdapter.getDataList().size() > position) {
+                    ItemModel item = mDataAdapter.getDataList().get(position);
+                    AppToast.showShortText(getApplicationContext(), item.title);
+                    mDataAdapter.remove(position);
+                }
+
             }
 
         });
@@ -211,7 +215,6 @@ public class EndlessLinearLayoutActivity extends AppCompatActivity{
                     activity.addItems(newList);
 
                     activity.mRecyclerView.refreshComplete(REQUEST_COUNT);
-                    activity.notifyDataSetChanged();
 
                     break;
                 case -3:

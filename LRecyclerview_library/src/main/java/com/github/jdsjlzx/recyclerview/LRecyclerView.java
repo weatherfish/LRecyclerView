@@ -282,12 +282,13 @@ public class LRecyclerView extends RecyclerView {
                 break;
             default:
                 mLastY = -1; // reset
-                if (isOnTop() && mPullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED) {
+                if (isOnTop() && mPullRefreshEnabled /*&& appbarState == AppBarStateChangeListener.State.EXPANDED*/) {
                     if (mRefreshHeader.onRelease()) {
                         if (mRefreshListener != null) {
                             mFootView.setVisibility(GONE);
-                            mRefreshListener.onRefresh();
                             mRefreshing = true;
+                            mRefreshListener.onRefresh();
+
                         }
                     }
                 }
@@ -355,7 +356,7 @@ public class LRecyclerView extends RecyclerView {
     }
 
     /**
-     * 设置自定义的headerview
+     * 设置自定义的RefreshHeader
      */
     private void setRefreshHeader(IRefreshHeader refreshHeader) {
         this.mRefreshHeader = refreshHeader;
@@ -490,10 +491,11 @@ public class LRecyclerView extends RecyclerView {
             mRefreshHeader.onRefreshing();
             int offSet = mRefreshHeader.getHeaderView().getMeasuredHeight();
             mRefreshHeader.onMove(offSet,offSet);
+            mRefreshing = true;
 
             mFootView.setVisibility(GONE);
             mRefreshListener.onRefresh();
-            mRefreshing = true;
+
         }
     }
 
