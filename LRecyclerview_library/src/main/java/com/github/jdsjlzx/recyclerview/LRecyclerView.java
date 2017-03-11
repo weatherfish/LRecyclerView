@@ -145,7 +145,8 @@ public class LRecyclerView extends RecyclerView {
 
         mWrapAdapter.setRefreshHeader(mRefreshHeader);
 
-        if (mLoadMoreEnabled) {
+        //fix bug: https://github.com/jdsjlzx/LRecyclerView/issues/115
+        if (mLoadMoreEnabled && mWrapAdapter.getFooterViewsCount()==0) {
             mWrapAdapter.addFooterView(mFootView);
         }
 
@@ -358,7 +359,7 @@ public class LRecyclerView extends RecyclerView {
     /**
      * 设置自定义的RefreshHeader
      */
-    private void setRefreshHeader(IRefreshHeader refreshHeader) {
+    public void setRefreshHeader(IRefreshHeader refreshHeader) {
         this.mRefreshHeader = refreshHeader;
     }
 
