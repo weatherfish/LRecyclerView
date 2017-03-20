@@ -33,7 +33,6 @@ public class LRecyclerView extends RecyclerView {
     private boolean mLoadMoreEnabled = true;
     private boolean mRefreshing = false;//是否正在下拉刷新
     private boolean mLoadingData = false;//是否正在加载数据
-    private boolean flag = false;//标记是否setAdapter
     private OnRefreshListener mRefreshListener;
     private OnLoadMoreListener mLoadMoreListener;
     private LScrollListener mLScrollListener;
@@ -132,15 +131,14 @@ public class LRecyclerView extends RecyclerView {
 
     @Override
     public void setAdapter(Adapter adapter) {
+        if (mWrapAdapter != null && mDataObserver != null) {
+            mWrapAdapter.getInnerAdapter().unregisterAdapterDataObserver(mDataObserver);
+        }
+
         mWrapAdapter = (LRecyclerViewAdapter) adapter;
         super.setAdapter(mWrapAdapter);
 
-        if(flag) {
-            mWrapAdapter.getInnerAdapter().unregisterAdapterDataObserver(mDataObserver);
-        }
         mWrapAdapter.getInnerAdapter().registerAdapterDataObserver(mDataObserver);
-        flag = true;
-
         mDataObserver.onChanged();
 
         mWrapAdapter.setRefreshHeader(mRefreshHeader);
@@ -273,9 +271,9 @@ public class LRecyclerView extends RecyclerView {
                 final float deltaY = (ev.getRawY() - mLastY) / DRAG_RATE;
                 mLastY = ev.getRawY();
                 sumOffSet += deltaY;
-                if (isOnTop() && mPullRefreshEnabled  && (appbarState == AppBarStateChangeListener.State.EXPANDED)) {
+                if (isOnTop() && mPullRefreshEnabled && !mRefreshing && (appbarState == AppBarStateChangeListener.State.EXPANDED)) {
                     mRefreshHeader.onMove(deltaY, sumOffSet);
-                    if (mRefreshHeader.getVisibleHeight() > 0 && mRefreshing) {
+                    if (mRefreshHeader.getVisibleHeight() > 0) {
                         return false;
                     }
                 }
@@ -283,11 +281,11 @@ public class LRecyclerView extends RecyclerView {
                 break;
             default:
                 mLastY = -1; // reset
-                if (isOnTop() && mPullRefreshEnabled /*&& appbarState == AppBarStateChangeListener.State.EXPANDED*/) {
+                if (isOnTop() && mPullRefreshEnabled && !mRefreshing/*&& appbarState == AppBarStateChangeListener.State.EXPANDED*/) {
                     if (mRefreshHeader.onRelease()) {
                         if (mRefreshListener != null) {
-                            mFootView.setVisibility(GONE);
                             mRefreshing = true;
+                            mFootView.setVisibility(GONE);
                             mRefreshListener.onRefresh();
 
                         }
@@ -330,8 +328,9 @@ public class LRecyclerView extends RecyclerView {
         this.mPageSize = pageSize;
         if (mRefreshing) {
             isNoMore = false;
-            mRefreshHeader.refreshComplete();
             mRefreshing = false;
+            mRefreshHeader.refreshComplete();
+
             if(mWrapAdapter.getInnerAdapter().getItemCount() < pageSize) {
                 mFootView.setVisibility(GONE);
             }
@@ -370,6 +369,14 @@ public class LRecyclerView extends RecyclerView {
         this.mLoadMoreFooter = loadMoreFooter;
         mFootView = loadMoreFooter.getFootView();
         mFootView.setVisibility(GONE);
+        
+        //wxm:mFootView inflate的时候没有以RecyclerView为parent，所以要设置LayoutParams
+        ViewGroup.LayoutParams vlp = mFootView.getLayoutParams();
+        if (vlp != null) {
+            mFootView.setLayoutParams(new LayoutParams(vlp));
+        } else {
+            mFootView.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+        }
     }
 
     public void setPullRefreshEnabled(boolean enabled) {
@@ -488,6 +495,9 @@ public class LRecyclerView extends RecyclerView {
     }
 
     public void refresh() {
+        if (mRefreshHeader.getVisibleHeight() > 0 || mRefreshing) {// if RefreshHeader is Refreshing, return
+            return;
+        }
         if (mPullRefreshEnabled && mRefreshListener != null) {
             mRefreshHeader.onRefreshing();
             int offSet = mRefreshHeader.getHeaderView().getMeasuredHeight();
@@ -496,16 +506,13 @@ public class LRecyclerView extends RecyclerView {
 
             mFootView.setVisibility(GONE);
             mRefreshListener.onRefresh();
-
         }
     }
 
     public void forceToRefresh() {
-
         if (mLoadingData) {
             return;
         }
-
         refresh();
     }
 
